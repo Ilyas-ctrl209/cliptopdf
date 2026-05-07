@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import type { PdfItem } from "@/lib/types";
 
 type SearchState =
@@ -24,7 +24,7 @@ export default function HomePage() {
       .catch(() => setFeatured([]));
   }, []);
 
-  async function handleSearch(e: React.FormEvent) {
+  async function handleSearch(e: FormEvent) {
     e.preventDefault();
     setRequestMessage("");
     if (!url.trim()) {
