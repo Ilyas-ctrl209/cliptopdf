@@ -10,6 +10,10 @@ type SearchState =
   | { status: "missing"; videoId: string; youtubeUrl: string }
   | { status: "error"; message: string };
 
+function pageCount(pdf: PdfItem) {
+  return Array.isArray(pdf.page_image_urls) ? pdf.page_image_urls.length : 0;
+}
+
 export default function HomePage() {
   const [url, setUrl] = useState("");
   const [email, setEmail] = useState("");
@@ -61,21 +65,21 @@ export default function HomePage() {
       setRequestMessage(data.error ?? "Could not send request.");
       return;
     }
-    setRequestMessage("Request saved. You can create this PDF later from your admin dashboard.");
+    setRequestMessage("Request saved. A creator can make this visual PDF later.");
   }
 
   return (
     <main>
-      <section className="container hero">
-        <div>
-          <span className="badge">YouTube link in → beautiful PDF out</span>
+      <section className="container hero upgraded-hero">
+        <div className="hero-copy float-in">
+          <span className="badge">YouTube link in → visual recipe pages out</span>
           <h1>Make scrolling feel like reading again.</h1>
           <p>
-            Paste a YouTube recipe link. If you already made the PDF, the site opens it instantly.
-            Later you can add animals, hadith notes, study sheets, and premium collections.
+            Paste a YouTube recipe link and open the visual PDF version instantly. Built for attractive recipe pages,
+            animal facts, hadith notes, study sheets, and creator-made collections.
           </p>
 
-          <form className="search-card" onSubmit={handleSearch}>
+          <form className="search-card glow-card" onSubmit={handleSearch}>
             <div className="search-row">
               <input
                 value={url}
@@ -87,30 +91,32 @@ export default function HomePage() {
             </div>
             <div className="helper">Example: https://www.youtube.com/watch?v=VIDEO_ID</div>
 
-            {search.status === "loading" && <div className="message">Searching your PDF library...</div>}
+            {search.status === "loading" && <div className="message pulse-text">Searching your visual library...</div>}
             {search.status === "error" && <div className="message error">{search.message}</div>}
 
             {search.status === "found" && (
-              <div className="result-card">
+              <div className="result-card float-in">
                 <img src={search.pdf.thumbnail_url ?? "/placeholder.svg"} alt="PDF thumbnail" />
                 <div>
                   <span className={search.pdf.is_pro ? "tag pro" : "tag"}>
                     {search.pdf.is_pro ? "Pro" : "Free"}
                   </span>
                   <h3>{search.pdf.title}</h3>
-                  <p className="meta">{search.pdf.category} {search.pdf.creator_name ? `• ${search.pdf.creator_name}` : ""}</p>
+                  <p className="meta">
+                    {search.pdf.category} {search.pdf.creator_name ? `• ${search.pdf.creator_name}` : ""} • {pageCount(search.pdf) || "visual"} pages
+                  </p>
                   <div className="card-actions">
-                    <a className="btn" href={`/pdf/${search.pdf.id}`}>Open PDF</a>
-                    <a className="btn ghost" href={search.pdf.youtube_url} target="_blank">Open YouTube</a>
+                    <a className="btn" href={`/pdf/${search.pdf.id}`}>Open visual pages</a>
+                    <a className="btn ghost" href={search.pdf.youtube_url} target="_blank">Watch source</a>
                   </div>
                 </div>
               </div>
             )}
 
             {search.status === "missing" && (
-              <div className="request-box">
-                <h3>No PDF found for this video yet.</h3>
-                <p className="helper">Save it as a request, then create the PDF and upload it from /admin.</p>
+              <div className="request-box float-in">
+                <h3>No visual PDF found for this video yet.</h3>
+                <p className="helper">Save it as a request, then a creator can turn it into a visual page set.</p>
                 <div className="search-row">
                   <input
                     value={email}
@@ -123,19 +129,24 @@ export default function HomePage() {
               </div>
             )}
           </form>
+
+          <div className="hero-actions">
+            <a className="btn ghost" href="/signup">Become a creator</a>
+            <a className="plain-link" href="#library">Browse latest pages ↓</a>
+          </div>
         </div>
 
-        <div className="hero-preview" aria-hidden="true">
-          <div className="stack-card">
+        <div className="hero-preview animated-preview" aria-hidden="true">
+          <div className="stack-card card-one">
             <span className="tape">Recipe PDF</span>
             <div className="fake-image">Crispy Chicken Stack</div>
             <div className="mini-grid">
               <div className="mini">Ingredients</div>
               <div className="mini">Steps</div>
-              <div className="mini">Tips</div>
+              <div className="mini">Texture</div>
             </div>
           </div>
-          <div className="stack-card">
+          <div className="stack-card card-two">
             <span className="tape">Animal PDF</span>
             <div className="fake-image animal">Endangered Animal Facts</div>
             <div className="mini-grid">
@@ -147,30 +158,35 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section className="container section">
+      <section id="library" className="container section">
         <div className="section-title">
           <div>
             <span className="badge">Library</span>
-            <h2>Recently added PDFs</h2>
+            <h2>Recently added visual PDFs</h2>
           </div>
-          <p>Upload your 12 recipe PDFs in the admin page. They will appear here automatically.</p>
+          <p>Visual recipe pages appear here as soon as creators upload them. The first image becomes the cover.</p>
         </div>
 
         <div className="grid">
           {featured.length === 0 && (
             <div className="panel">
-              <h3>No PDFs yet.</h3>
-              <p className="helper">Go to /admin and upload your first recipe PDF.</p>
+              <h3>No visual PDFs yet.</h3>
+              <p className="helper">Login as a creator and upload your first recipe with page images.</p>
             </div>
           )}
 
-          {featured.map((pdf) => (
-            <article className="pdf-card" key={pdf.id}>
-              <img src={pdf.thumbnail_url ?? "/placeholder.svg"} alt={pdf.title} />
+          {featured.map((pdf, index) => (
+            <article className="pdf-card float-in" style={{ animationDelay: `${index * 70}ms` }} key={pdf.id}>
+              <a href={`/pdf/${pdf.id}`} className="cover-link">
+                <img src={pdf.thumbnail_url ?? "/placeholder.svg"} alt={pdf.title} />
+                <span className="cover-hover">Open pages</span>
+              </a>
               <div className="pdf-body">
                 <span className={pdf.is_pro ? "tag pro" : "tag"}>{pdf.is_pro ? "Pro" : "Free"}</span>
                 <h3>{pdf.title}</h3>
-                <p className="meta">{pdf.category} {pdf.creator_name ? `• ${pdf.creator_name}` : ""}</p>
+                <p className="meta">
+                  {pdf.category} {pdf.creator_name ? `• ${pdf.creator_name}` : ""} • {pageCount(pdf) || "visual"} pages
+                </p>
                 <div className="card-actions">
                   <a className="btn" href={`/pdf/${pdf.id}`}>Open</a>
                 </div>

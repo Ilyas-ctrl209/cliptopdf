@@ -24,17 +24,24 @@ async function uploadPublicFile(bucket: string, path: string, file: File) {
 }
 
 export async function POST(request: Request) {
-  const formData = await request.formData();
+  const authHeader = request.headers.get("authorization") ?? "";
+  const token = authHeader.replace(/^Bearer\s+/i, "").trim();
 
-  const password = String(formData.get("password") ?? "");
-  if (!process.env.ADMIN_PASSWORD || password !== process.env.ADMIN_PASSWORD) {
-    return NextResponse.json({ error: "Wrong admin password." }, { status: 401 });
+  if (!token) {
+    return NextResponse.json({ error: "Login required." }, { status: 401 });
   }
 
+  const { data: userData, error: userError } = await supabaseAdmin.auth.getUser(token);
+  if (userError || !userData.user) {
+    return NextResponse.json({ error: "Invalid login session." }, { status: 401 });
+  }
+
+  const formData = await request.formData();
   const title = String(formData.get("title") ?? "").trim();
   const youtubeUrl = String(formData.get("youtubeUrl") ?? "").trim();
   const category = String(formData.get("category") ?? "recipe").trim() || "recipe";
-  const creatorName = String(formData.get("creatorName") ?? "").trim() || null;
+  const userName = String(userData.user.user_metadata?.full_name ?? userData.user.user_metadata?.name ?? "").trim();
+  const creatorName = String(formData.get("creatorName") ?? "").trim() || userName || userData.user.email || "Creator";
   const description = String(formData.get("description") ?? "").trim() || null;
   const isPro = String(formData.get("isPro") ?? "false") === "true";
   const pdfFile = formData.get("pdfFile");
@@ -76,6 +83,16 @@ export async function POST(request: Request) {
       pdfUrl = await uploadPublicFile(bucket, pdfPath, pdfFile);
     }
 
+    await supabaseAdmin.from("creator_profiles").upsert(
+      {
+        user_id: userData.user.id,
+        display_name: creatorName,
+        email: userData.user.email,
+        avatar_url: String(userData.user.user_metadata?.avatar_url ?? "") || null
+      },
+      { onConflict: "user_id" }
+    );
+
     const { data, error: insertError } = await supabaseAdmin
       .from("pdfs")
       .upsert(
@@ -85,6 +102,7 @@ export async function POST(request: Request) {
           title,
           category,
           creator_name: creatorName,
+          creator_user_id: userData.user.id,
           description,
           pdf_url: pdfUrl,
           page_image_urls: pageImageUrls,

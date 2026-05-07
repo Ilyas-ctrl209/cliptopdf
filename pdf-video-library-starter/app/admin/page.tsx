@@ -37,9 +37,9 @@ export default function AdminPage() {
       <div className="section-title">
         <div>
           <span className="badge">Private admin</span>
-          <h1>Upload a new PDF</h1>
+          <h1>Upload a visual PDF</h1>
         </div>
-        <p>Use this page to add your 12 recipe PDFs and connect each PDF to its YouTube video link.</p>
+        <p>This admin page is hidden from the top bar. Public creators should use /creator after Google login.</p>
       </div>
 
       <form className="admin-card" onSubmit={submit}>
@@ -55,8 +55,8 @@ export default function AdminPage() {
           </label>
 
           <label>
-            PDF title
-            <input name="title" placeholder="Crispy Chicken + Cheese-Stuffed Meatball Stack" required />
+            Title
+            <input name="title" placeholder="Eggs with Tomato and Cheese" required />
           </label>
 
           <label>
@@ -75,13 +75,19 @@ export default function AdminPage() {
           </label>
 
           <label>
-            PDF file
-            <input type="file" name="pdfFile" accept="application/pdf" required />
+            Optional PDF file
+            <input type="file" name="pdfFile" accept="application/pdf" />
+          </label>
+
+          <label className="full">
+            Page images
+            <input type="file" name="pageImages" accept="image/png,image/jpeg,image/webp" multiple required />
+            <span className="helper">Upload the attractive page images. The first image becomes the card cover.</span>
           </label>
 
           <label className="full">
             Description
-            <textarea name="description" placeholder="Short description of this PDF..." />
+            <textarea name="description" placeholder="Short description of this visual PDF..." />
           </label>
 
           <label className="check-row full">
@@ -91,7 +97,7 @@ export default function AdminPage() {
         </div>
 
         <div className="card-actions">
-          <button className="btn" type="submit" disabled={loading}>{loading ? "Uploading..." : "Upload PDF"}</button>
+          <button className="btn" type="submit" disabled={loading}>{loading ? "Uploading..." : "Upload visual PDF"}</button>
           <a className="btn ghost" href="/">Back home</a>
         </div>
 
