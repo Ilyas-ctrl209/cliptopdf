@@ -138,7 +138,7 @@ export default function CreatorPage() {
           </div>
         </div>
         <p className="helper big-helper">
-          Upload the recipe as images first. The first image becomes the attractive cover, and the open page will show images instead of the ugly PDF viewer.
+          Upload page images first. The first image becomes the attractive cover, and visitors read image pages first. The optional PDF file stays for download, but free users only get 1 download per day.
         </p>
         <button className="btn ghost" onClick={logout} type="button">Logout</button>
       </section>
@@ -178,8 +178,15 @@ export default function CreatorPage() {
           </label>
 
           <label>
-            Optional PDF file
+            Optional PDF file for download
             <input type="file" name="pdfFile" accept="application/pdf" />
+            <span className="helper">Images are the main attraction. PDF is only for the download button.</span>
+          </label>
+
+          <label>
+            Free-user copyright / watermark image
+            <input type="file" name="copyrightImage" accept="image/png,image/jpeg,image/webp" />
+            <span className="helper">Optional. This appears over page images for free users only.</span>
           </label>
 
           <label className="full">
@@ -195,7 +202,7 @@ export default function CreatorPage() {
 
           <label className="check-row full">
             <input type="checkbox" name="isPro" />
-            Make this Pro-only
+            Make this Pro-only / premium locked
           </label>
         </div>
 

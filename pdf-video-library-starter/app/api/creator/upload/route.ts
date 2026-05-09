@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { extractYouTubeVideoId, youtubeThumbnail } from "@/lib/youtube";
+import { ensureUserProfile } from "@/lib/authHelpers";
 
 function safeFileName(name: string) {
   return name
@@ -36,6 +37,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid login session." }, { status: 401 });
   }
 
+  await ensureUserProfile(userData.user);
+
   const formData = await request.formData();
   const title = String(formData.get("title") ?? "").trim();
   const youtubeUrl = String(formData.get("youtubeUrl") ?? "").trim();
@@ -45,6 +48,7 @@ export async function POST(request: Request) {
   const description = String(formData.get("description") ?? "").trim() || null;
   const isPro = String(formData.get("isPro") ?? "false") === "true";
   const pdfFile = formData.get("pdfFile");
+  const copyrightImage = formData.get("copyrightImage");
   const pageImages = formData
     .getAll("pageImages")
     .filter((item): item is File => item instanceof File && item.size > 0);
@@ -66,6 +70,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Optional PDF file must be a PDF." }, { status: 400 });
   }
 
+  if (copyrightImage instanceof File && copyrightImage.size > 0 && copyrightImage.type && !copyrightImage.type.startsWith("image/")) {
+    return NextResponse.json({ error: "Copyright/watermark file must be an image." }, { status: 400 });
+  }
+
   const bucket = process.env.SUPABASE_STORAGE_BUCKET || "pdfs";
   const stamp = Date.now();
 
@@ -78,6 +86,13 @@ export async function POST(request: Request) {
     }
 
     let pdfUrl: string | null = null;
+    let copyrightImageUrl: string | null = null;
+
+    if (copyrightImage instanceof File && copyrightImage.size > 0) {
+      const copyrightPath = `${videoId}/copyright/${stamp}-${safeFileName(copyrightImage.name)}`;
+      copyrightImageUrl = await uploadPublicFile(bucket, copyrightPath, copyrightImage);
+    }
+
     if (pdfFile instanceof File && pdfFile.size > 0) {
       const pdfPath = `${videoId}/pdf/${stamp}-${safeFileName(pdfFile.name)}`;
       pdfUrl = await uploadPublicFile(bucket, pdfPath, pdfFile);
@@ -107,6 +122,7 @@ export async function POST(request: Request) {
           pdf_url: pdfUrl,
           page_image_urls: pageImageUrls,
           thumbnail_url: pageImageUrls[0] ?? youtubeThumbnail(videoId),
+          copyright_image_url: copyrightImageUrl,
           is_pro: isPro
         },
         { onConflict: "video_id" }
