@@ -46,7 +46,9 @@ export async function POST(request: Request) {
   const userName = String(userData.user.user_metadata?.full_name ?? userData.user.user_metadata?.name ?? "").trim();
   const creatorName = String(formData.get("creatorName") ?? "").trim() || userName || userData.user.email || "Creator";
   const description = String(formData.get("description") ?? "").trim() || null;
-  const isPro = String(formData.get("isPro") ?? "false") === "true";
+  const rawPlan = String(formData.get("requiredPlan") ?? "").trim();
+  const legacyIsPro = String(formData.get("isPro") ?? "false") === "true";
+  const requiredPlan = rawPlan === "premium" ? "premium" : rawPlan === "pro" || legacyIsPro ? "pro" : "free";
   const pdfFile = formData.get("pdfFile");
   const copyrightImage = formData.get("copyrightImage");
   const pageImages = formData
@@ -123,7 +125,8 @@ export async function POST(request: Request) {
           page_image_urls: pageImageUrls,
           thumbnail_url: pageImageUrls[0] ?? youtubeThumbnail(videoId),
           copyright_image_url: copyrightImageUrl,
-          is_pro: isPro
+          is_pro: requiredPlan !== "free",
+          required_plan: requiredPlan
         },
         { onConflict: "video_id" }
       )

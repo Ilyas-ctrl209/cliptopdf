@@ -13,7 +13,7 @@ export default function SignupPage() {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
-          redirectTo: `${window.location.origin}/creator`
+          redirectTo: `${window.location.origin}/account`
         }
       });
       if (error) setMessage(error.message);
@@ -25,10 +25,10 @@ export default function SignupPage() {
   return (
     <main className="container auth-wrap">
       <section className="auth-card float-in">
-        <span className="badge">Start uploading</span>
+        <span className="badge">Free reader account</span>
         <h1>Sign up</h1>
         <p className="helper big-helper">
-          Create a creator account. Later, creators can upload their own recipe PDFs, animal PDFs, hadith notes, and collections.
+          Start as a normal free user. You can read 10 free visual PDFs per day, download 1 PDF per day, and upgrade later.
         </p>
         <button className="google-btn" onClick={continueWithGoogle} type="button">
           <span className="google-dot">G</span>

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { ensureUserProfile, isPaidPlan, requireUser, todayKey } from "@/lib/authHelpers";
+import { canAccessRequiredPlan, ensureUserProfile, isPaidPlan, requireUser, todayKey } from "@/lib/authHelpers";
 import type { PdfItem } from "@/lib/types";
 
 const FREE_DAILY_VISUAL_LIMIT = 10;
@@ -31,10 +31,12 @@ export async function GET(request: Request) {
   const pdf = pdfData as PdfItem;
   const paid = isPaidPlan(profile.plan);
 
-  if (pdf.is_pro && !paid) {
+  const requiredPlan = pdf.required_plan ?? (pdf.is_pro ? "pro" : "free");
+
+  if (!canAccessRequiredPlan(profile.plan, requiredPlan)) {
     return NextResponse.json({
       locked: true,
-      reason: "This is a Pro visual PDF.",
+      reason: requiredPlan === "premium" ? "This is a Premium visual PDF." : "This is a Pro visual PDF.",
       profile,
       limits: {
         dailyVisualLimit: FREE_DAILY_VISUAL_LIMIT,

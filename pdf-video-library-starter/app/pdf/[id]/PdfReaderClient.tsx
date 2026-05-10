@@ -144,7 +144,7 @@ export default function PdfReaderClient({ id }: { id: string }) {
   const pageImages = normalizeImages(pdf);
   const showWatermark = data.access?.showFreeWatermark ?? true;
   const watermarkImage = pdf.copyright_image_url;
-  const planLabel = data.profile?.plan === "pro" || data.profile?.plan === "admin" ? "PRO" : "FREE";
+  const planLabel = data.profile?.plan === "admin" ? "ADMIN" : data.profile?.plan === "premium" ? "PREMIUM" : data.profile?.plan === "pro" ? "PRO" : "FREE";
 
   return (
     <main className="container pdf-page image-pdf-page">
@@ -176,8 +176,8 @@ export default function PdfReaderClient({ id }: { id: string }) {
       <aside className="sidebar sticky-sidebar">
         <div className="panel visual-info-card pop-in">
           <div className="plan-row">
-            <span className={pdf.is_pro ? "tag pro" : "tag"}>{pdf.is_pro ? "Pro" : "Free"}</span>
-            <span className={planLabel === "PRO" ? "tag pro glow-badge" : "tag"}>Your plan: {planLabel}</span>
+            <span className={pdf.required_plan === "premium" ? "tag premium" : pdf.required_plan === "pro" || pdf.is_pro ? "tag pro" : "tag"}>{pdf.required_plan === "premium" ? "Premium" : pdf.required_plan === "pro" || pdf.is_pro ? "Pro" : "Free"}</span>
+            <span className={planLabel === "FREE" ? "tag" : planLabel === "PREMIUM" ? "tag premium glow-badge" : "tag pro glow-badge"}>Your plan: {planLabel}</span>
           </div>
           <h1>{pdf.title}</h1>
           <p className="meta">

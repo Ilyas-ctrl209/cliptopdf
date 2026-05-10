@@ -13,7 +13,7 @@ export default function LoginPage() {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
-          redirectTo: `${window.location.origin}/creator`
+          redirectTo: `${window.location.origin}/account`
         }
       });
       if (error) setMessage(error.message);
@@ -25,10 +25,10 @@ export default function LoginPage() {
   return (
     <main className="container auth-wrap">
       <section className="auth-card float-in">
-        <span className="badge">Creator account</span>
+        <span className="badge">Reader account</span>
         <h1>Login</h1>
         <p className="helper big-helper">
-          Use Google to enter your creator studio, upload visual recipe pages, and connect them to YouTube links.
+          Use Google to read free visual PDFs, upgrade to Pro/Premium, or open Creator Studio later.
         </p>
         <button className="google-btn" onClick={continueWithGoogle} type="button">
           <span className="google-dot">G</span>

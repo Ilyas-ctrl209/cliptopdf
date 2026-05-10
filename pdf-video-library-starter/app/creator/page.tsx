@@ -74,7 +74,7 @@ export default function CreatorPage() {
     setMessage("Uploading visual pages...");
     const form = e.currentTarget;
     const formData = new FormData(form);
-    formData.set("isPro", formData.get("isPro") === "on" ? "true" : "false");
+    formData.set("requiredPlan", String(formData.get("requiredPlan") ?? "free"));
 
     const response = await fetch("/api/creator/upload", {
       method: "POST",
@@ -200,9 +200,13 @@ export default function CreatorPage() {
             <textarea name="description" placeholder="Short description of this visual PDF..." />
           </label>
 
-          <label className="check-row full">
-            <input type="checkbox" name="isPro" />
-            Make this Pro-only / premium locked
+          <label className="full">
+            Access level
+            <select name="requiredPlan" defaultValue="free">
+              <option value="free">Free</option>
+              <option value="pro">Pro locked</option>
+              <option value="premium">Premium locked</option>
+            </select>
           </label>
         </div>
 

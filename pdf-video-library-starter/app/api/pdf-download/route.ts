@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { ensureUserProfile, isPaidPlan, requireUser, todayKey } from "@/lib/authHelpers";
+import { canAccessRequiredPlan, ensureUserProfile, isPaidPlan, requireUser, todayKey } from "@/lib/authHelpers";
 import type { PdfItem } from "@/lib/types";
 
 export async function POST(request: Request) {
@@ -32,8 +32,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "No downloadable PDF file was uploaded for this entry yet." }, { status: 404 });
   }
 
-  if (pdf.is_pro && !paid) {
-    return NextResponse.json({ error: "This PDF download is for Pro users." }, { status: 403 });
+  const requiredPlan = pdf.required_plan ?? (pdf.is_pro ? "pro" : "free");
+  if (!canAccessRequiredPlan(profile.plan, requiredPlan)) {
+    return NextResponse.json({ error: requiredPlan === "premium" ? "This PDF download is for Premium users." : "This PDF download is for Pro users." }, { status: 403 });
   }
 
   if (!paid) {

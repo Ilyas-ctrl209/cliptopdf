@@ -1,30 +1,50 @@
-# ClipToPDF Visual Creator Version
+# ClipToPDF Stripe + Admin Editor Update
 
-This version adds:
+This update adds:
 
-- Login and signup pages with Google OAuth through Supabase
-- Creator Studio at `/creator`
-- Upload page images so entries open as attractive images, not the browser PDF viewer
-- Optional PDF file upload for downloading
-- Public library cards using the first page image as the cover
-- Admin hidden from the top bar, still available at `/admin`
+- Free / Pro / Premium plans
+- Stripe Checkout route for Pro and Premium subscriptions
+- Stripe webhook route to update the user plan in Supabase
+- Stripe customer portal route
+- Account page with profile editing
+- Admin password gate before the private admin editor opens
+- Admin dashboard stats: pages, users, creators, requests, views today, downloads today
+- Admin page editor: edit access level, title, category, creator, description, images, optional PDF, watermark
+- Admin homepage editor: change hero title/subtitle and upload Recipe/Animal hero images
+- Premium plan support on visual pages
 
-## Required Vercel environment variables
+## Required Vercel env vars
+
+Keep your old vars and add:
 
 ```env
-SUPABASE_URL=https://YOUR-PROJECT.supabase.co
-SUPABASE_SERVICE_ROLE_KEY=YOUR_SERVICE_ROLE_KEY
-SUPABASE_STORAGE_BUCKET=pdfs
-ADMIN_PASSWORD=choose-a-private-password
-NEXT_PUBLIC_SITE_URL=https://your-site.vercel.app
-NEXT_PUBLIC_SUPABASE_URL=https://YOUR-PROJECT.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=YOUR_ANON_OR_PUBLISHABLE_KEY
+STRIPE_SECRET_KEY=sk_test_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+STRIPE_PRO_PRICE_ID=price_...
+STRIPE_PREMIUM_PRICE_ID=price_...
 ```
 
-## Database
+## Stripe webhook endpoint
 
-Run `supabase/schema.sql` in Supabase SQL Editor.
+Set this in Stripe Dashboard webhook endpoint:
 
-## Google login setup
+```txt
+https://cliptopdf.vercel.app/api/stripe/webhook
+```
 
-In Supabase, enable Google under Authentication > Providers, then add your site URL to Authentication > URL Configuration / Redirect URLs.
+Recommended events:
+
+- checkout.session.completed
+- customer.subscription.created
+- customer.subscription.updated
+- customer.subscription.deleted
+
+## Admin
+
+Open:
+
+```txt
+https://cliptopdf.vercel.app/admin
+```
+
+Enter your Vercel `ADMIN_PASSWORD`.

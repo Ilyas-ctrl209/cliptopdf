@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
-import type { PdfItem } from "@/lib/types";
+import type { PdfItem, SiteSettings } from "@/lib/types";
 
 type SearchState =
   | { status: "idle" }
@@ -14,11 +14,21 @@ function pageCount(pdf: PdfItem) {
   return Array.isArray(pdf.page_image_urls) ? pdf.page_image_urls.length : 0;
 }
 
+function pdfPlan(pdf: PdfItem) {
+  return pdf.required_plan ?? (pdf.is_pro ? "pro" : "free");
+}
+
+function planLabel(pdf: PdfItem) {
+  const plan = pdfPlan(pdf);
+  return plan === "premium" ? "Premium" : plan === "pro" ? "Pro" : "Free";
+}
+
 export default function HomePage() {
   const [url, setUrl] = useState("");
   const [email, setEmail] = useState("");
   const [search, setSearch] = useState<SearchState>({ status: "idle" });
   const [featured, setFeatured] = useState<PdfItem[]>([]);
+  const [settings, setSettings] = useState<SiteSettings>({});
   const [requestMessage, setRequestMessage] = useState("");
 
   useEffect(() => {
@@ -26,6 +36,10 @@ export default function HomePage() {
       .then((res) => res.json())
       .then((data) => setFeatured(data.pdfs ?? []))
       .catch(() => setFeatured([]));
+    fetch("/api/site-settings")
+      .then((res) => res.json())
+      .then((data) => setSettings(data.settings ?? {}))
+      .catch(() => setSettings({}));
   }, []);
 
   async function handleSearch(e: FormEvent) {
@@ -73,10 +87,9 @@ export default function HomePage() {
       <section className="container hero upgraded-hero">
         <div className="hero-copy float-in">
           <span className="badge">YouTube link in → visual recipe pages out</span>
-          <h1>Make scrolling feel like reading again.</h1>
+          <h1>{settings.hero_title || "Make scrolling feel like reading again."}</h1>
           <p>
-            Paste a YouTube recipe link and open the visual PDF version instantly. Built for attractive recipe pages,
-            animal facts, hadith notes, study sheets, and creator-made collections.
+            {settings.hero_subtitle || "Paste a YouTube recipe link and open the visual PDF version instantly. Built for attractive recipe pages, animal facts, hadith notes, study sheets, and creator-made collections."}
           </p>
 
           <form className="search-card glow-card" onSubmit={handleSearch}>
@@ -98,8 +111,8 @@ export default function HomePage() {
               <div className="result-card float-in">
                 <img src={search.pdf.thumbnail_url ?? "/placeholder.svg"} alt="PDF thumbnail" />
                 <div>
-                  <span className={search.pdf.is_pro ? "tag pro" : "tag"}>
-                    {search.pdf.is_pro ? "Pro" : "Free"}
+                  <span className={pdfPlan(search.pdf) === "premium" ? "tag premium" : pdfPlan(search.pdf) === "pro" ? "tag pro" : "tag"}>
+                    {planLabel(search.pdf)}
                   </span>
                   <h3>{search.pdf.title}</h3>
                   <p className="meta">
@@ -139,7 +152,7 @@ export default function HomePage() {
         <div className="hero-preview animated-preview" aria-hidden="true">
           <div className="stack-card card-one">
             <span className="tape">Recipe PDF</span>
-            <div className="fake-image">Crispy Chicken Stack</div>
+            {settings.recipe_hero_image_url ? <img className="hero-card-image" src={settings.recipe_hero_image_url} alt="Recipe PDF preview" /> : <div className="fake-image">Crispy Chicken Stack</div>}
             <div className="mini-grid">
               <div className="mini">Ingredients</div>
               <div className="mini">Steps</div>
@@ -148,7 +161,7 @@ export default function HomePage() {
           </div>
           <div className="stack-card card-two">
             <span className="tape">Animal PDF</span>
-            <div className="fake-image animal">Endangered Animal Facts</div>
+            {settings.animal_hero_image_url ? <img className="hero-card-image" src={settings.animal_hero_image_url} alt="Animal PDF preview" /> : <div className="fake-image animal">Endangered Animal Facts</div>}
             <div className="mini-grid">
               <div className="mini">Habitat</div>
               <div className="mini">Diet</div>
@@ -182,7 +195,7 @@ export default function HomePage() {
                 <span className="cover-hover">Open pages</span>
               </a>
               <div className="pdf-body">
-                <span className={pdf.is_pro ? "tag pro" : "tag"}>{pdf.is_pro ? "Pro" : "Free"}</span>
+                <span className={pdfPlan(pdf) === "premium" ? "tag premium" : pdfPlan(pdf) === "pro" ? "tag pro" : "tag"}>{planLabel(pdf)}</span>
                 <h3>{pdf.title}</h3>
                 <p className="meta">
                   {pdf.category} {pdf.creator_name ? `• ${pdf.creator_name}` : ""} • {pageCount(pdf) || "visual"} pages

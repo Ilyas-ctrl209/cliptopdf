@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import type { AppUserProfile, UserPlan } from "@/lib/types";
+import type { AppUserProfile, RequiredPlan, UserPlan } from "@/lib/types";
 
 export function todayKey() {
   return new Date().toISOString().slice(0, 10);
@@ -58,6 +58,29 @@ export async function ensureUserProfile(user: {
   return data as AppUserProfile;
 }
 
+export function planRank(plan?: string | null) {
+  if (plan === "admin") return 99;
+  if (plan === "premium") return 3;
+  if (plan === "pro") return 2;
+  return 1;
+}
+
+export function requiredPlanRank(required?: string | null) {
+  if (required === "premium") return 3;
+  if (required === "pro") return 2;
+  return 1;
+}
+
 export function isPaidPlan(plan?: string | null) {
-  return plan === "pro" || plan === "admin";
+  return plan === "pro" || plan === "premium" || plan === "admin";
+}
+
+export function canAccessRequiredPlan(userPlan?: string | null, requiredPlan?: RequiredPlan | string | null) {
+  return planRank(userPlan) >= requiredPlanRank(requiredPlan);
+}
+
+export function isAdminPassword(request: Request, passwordFromBody?: string | null) {
+  const headerPassword = request.headers.get("x-admin-password") ?? "";
+  const password = passwordFromBody ?? headerPassword;
+  return Boolean(process.env.ADMIN_PASSWORD && password === process.env.ADMIN_PASSWORD);
 }
