@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import AuthNav from "@/app/components/AuthNav";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -15,13 +16,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <span className="brand-mark">▣</span>
             <span>ClipToPDF</span>
           </a>
-          <nav>
-            <a href="/">Home</a>
-            <a href="/pricing">Pricing</a>
-            <a href="/account">Account</a>
-            <a href="/login">Login</a>
-            <a className="nav-pill" href="/signup">Sign up</a>
-          </nav>
+          <AuthNav />
         </header>
         {children}
       </body>

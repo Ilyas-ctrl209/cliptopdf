@@ -72,12 +72,21 @@ export default function PricingPage() {
         },
         body: JSON.stringify({ plan })
       });
-      const json = await response.json();
-      if (!response.ok) {
-        setMessage(json.error ?? "Stripe checkout is not ready yet.");
+      const text = await response.text();
+      let json: { url?: string; error?: string } = {};
+
+      try {
+        json = text ? JSON.parse(text) : {};
+      } catch {
+        json = { error: text || "Stripe checkout returned an empty response." };
+      }
+
+      if (!response.ok || !json.url) {
+        setMessage(json.error ?? "Stripe checkout is not ready yet. Check Vercel Logs for /api/stripe/checkout.");
         setLoadingPlan(null);
         return;
       }
+
       window.location.href = json.url;
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not start checkout.");
