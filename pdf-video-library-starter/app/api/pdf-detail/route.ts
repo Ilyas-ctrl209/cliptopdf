@@ -40,6 +40,13 @@ export async function GET(request: Request) {
 
   const requiredPlan = pdf.required_plan ?? (pdf.is_pro ? "pro" : "free");
 
+  await supabaseAdmin.from("pdf_view_events").insert({
+    user_id: required.user.id,
+    pdf_id: id,
+    viewer_plan: profile.plan,
+    view_date: todayKey()
+  });
+
   if (!canAccessRequiredPlan(profile.plan, requiredPlan)) {
     return NextResponse.json({
       locked: true,

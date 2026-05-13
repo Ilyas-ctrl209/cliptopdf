@@ -3,6 +3,22 @@
 
 create extension if not exists pgcrypto;
 
+
+create table if not exists public.categories (
+  id uuid primary key default gen_random_uuid(),
+  slug text not null unique,
+  label text not null,
+  is_active boolean not null default true,
+  created_at timestamptz not null default now()
+);
+
+insert into public.categories (slug, label, is_active) values
+  ('recipe', 'Recipe', true),
+  ('animal', 'Endangered animal', true),
+  ('hadith', 'Hadith', true),
+  ('study', 'Study notes', true)
+on conflict (slug) do update set label = excluded.label, is_active = true;
+
 create table if not exists public.user_profiles (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null unique references auth.users(id) on delete cascade,
@@ -130,6 +146,20 @@ create table if not exists public.user_pdf_views (
   unique (user_id, pdf_id, view_date)
 );
 
+
+
+create table if not exists public.pdf_view_events (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid references auth.users(id) on delete set null,
+  pdf_id uuid not null references public.pdfs(id) on delete cascade,
+  viewer_plan text,
+  view_date date not null default current_date,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists pdf_view_events_pdf_id_idx on public.pdf_view_events (pdf_id);
+create index if not exists pdf_view_events_view_date_idx on public.pdf_view_events (view_date);
+
 create table if not exists public.user_pdf_downloads (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
@@ -160,15 +190,24 @@ values ('home', jsonb_build_object(
 ))
 on conflict (key) do nothing;
 
+alter table public.categories enable row level security;
 alter table public.pdfs enable row level security;
 alter table public.pdf_requests enable row level security;
 alter table public.creator_profiles enable row level security;
 alter table public.user_profiles enable row level security;
 alter table public.user_pdf_views enable row level security;
+alter table public.pdf_view_events enable row level security;
 alter table public.user_pdf_downloads enable row level security;
 alter table public.site_settings enable row level security;
 
 -- Public/basic read policies. Server API uses service role for private/admin actions.
+
+
+do $$ begin
+  if not exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'categories' and policyname = 'Public can read active categories') then
+    create policy "Public can read active categories" on public.categories for select using (is_active = true);
+  end if;
+end $$;
 do $$ begin
   if not exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'pdfs' and policyname = 'Public can read PDFs') then
     create policy "Public can read PDFs" on public.pdfs for select using (true);

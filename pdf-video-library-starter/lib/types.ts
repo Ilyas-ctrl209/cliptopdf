@@ -21,6 +21,7 @@ export type PdfItem = {
   is_pro: boolean;
   required_plan?: RequiredPlan | null;
   download_count: number;
+  total_views?: number;
   created_at: string;
 };
 
@@ -45,4 +46,12 @@ export type SiteSettings = {
   recipe_hero_image_url?: string;
   animal_hero_image_url?: string;
   default_watermark_image_url?: string;
+};
+
+
+export type Category = {
+  id: string;
+  slug: string;
+  label: string;
+  created_at?: string;
 };

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
-import type { PdfItem, SiteSettings } from "@/lib/types";
+import type { Category, PdfItem, SiteSettings } from "@/lib/types";
 
 type Stats = {
   pdfCount: number;
@@ -48,7 +48,8 @@ export default function AdminPage() {
   const [users, setUsers] = useState<UserRow[]>([]);
   const [settings, setSettings] = useState<SiteSettings>({});
   const [selected, setSelected] = useState<PdfItem | null>(null);
-  const [activeTab, setActiveTab] = useState<"overview" | "homepage" | "pages" | "upload" | "users">("overview");
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [activeTab, setActiveTab] = useState<"overview" | "homepage" | "pages" | "upload" | "categories" | "users">("overview");
 
   async function loadDashboard(pass = password) {
     setLoading(true);
@@ -69,6 +70,7 @@ export default function AdminPage() {
     setPdfs(data.pdfs ?? []);
     setUsers(data.users ?? []);
     setSettings(data.settings ?? {});
+    setCategories(data.categories ?? []);
     setMessage("Admin editor opened.");
   }
 
@@ -86,6 +88,55 @@ export default function AdminPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  function categoryOptions(current?: string | null) {
+    const list = [...categories];
+    if (current && !list.some((category) => category.slug === current)) {
+      list.push({ id: current, slug: current, label: current });
+    }
+    return list.length > 0 ? list : [
+      { id: "recipe", slug: "recipe", label: "Recipe" },
+      { id: "animal", slug: "animal", label: "Endangered animal" },
+      { id: "hadith", slug: "hadith", label: "Hadith" },
+      { id: "study", slug: "study", label: "Study notes" }
+    ];
+  }
+
+  async function saveCategory(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setMessage("Saving category...");
+    const formData = new FormData(e.currentTarget);
+    const response = await fetch("/api/admin/categories", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ password, action: "add", label: String(formData.get("label") ?? ""), slug: String(formData.get("slug") ?? "") })
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      setMessage(data.error ?? "Could not save category.");
+      return;
+    }
+    setCategories(data.categories ?? []);
+    setMessage("Category saved.");
+    e.currentTarget.reset();
+  }
+
+  async function deleteCategory(id: string) {
+    const ok = window.confirm("Remove this category from the dropdown? Existing pages keep their category text.");
+    if (!ok) return;
+    const response = await fetch("/api/admin/categories", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ password, action: "delete", id })
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      setMessage(data.error ?? "Could not remove category.");
+      return;
+    }
+    setCategories(data.categories ?? []);
+    setMessage("Category removed from dropdown.");
+  }
 
   async function saveHomepage(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -189,7 +240,7 @@ export default function AdminPage() {
       {message && <p className={message.includes("failed") || message.includes("Wrong") || message.includes("Could") ? "message error" : "message success"}>{message}</p>}
 
       <div className="admin-tabs">
-        {(["overview", "homepage", "pages", "upload", "users"] as const).map((tab) => (
+        {(["overview", "homepage", "pages", "upload", "categories", "users"] as const).map((tab) => (
           <button key={tab} className={activeTab === tab ? "tab active" : "tab"} onClick={() => setActiveTab(tab)}>{tab}</button>
         ))}
       </div>
@@ -233,7 +284,7 @@ export default function AdminPage() {
               {pdfs.map((pdf) => (
                 <button className={selected?.id === pdf.id ? "admin-page-row selected" : "admin-page-row"} key={pdf.id} onClick={() => setSelected(pdf)}>
                   <img src={pdf.thumbnail_url ?? ""} alt="" />
-                  <span><strong>{pdf.title}</strong><small>{accessLabel(pdf)} • {pdf.category} • {pageCount(pdf)} images • {watermarkLabel(pdf)}</small></span>
+                  <span><strong>{pdf.title}</strong><small>{accessLabel(pdf)} • {pdf.category} • {pageCount(pdf)} images • {pdf.total_views ?? 0} views • {watermarkLabel(pdf)}</small></span>
                 </button>
               ))}
             </div>
@@ -244,12 +295,13 @@ export default function AdminPage() {
               <form onSubmit={updateSelected}>
                 <span className={accessLabel(selected) === "Premium" ? "tag premium" : accessLabel(selected) === "Pro" ? "tag pro" : "tag"}>{accessLabel(selected)}</span>
                 <h2>Edit page</h2>
+                <p className="helper">Total views tracked: {selected.total_views ?? 0}</p>
                 <div className="form-grid single-form-grid">
                   <label>Title<input name="title" defaultValue={selected.title} /></label>
-                  <label>Category<input name="category" defaultValue={selected.category} /></label>
+                  <label>Category<select name="category" defaultValue={selected.category}>{categoryOptions(selected.category).map((category) => <option key={category.slug} value={category.slug}>{category.label}</option>)}</select></label>
                   <label>Creator name<input name="creatorName" defaultValue={selected.creator_name ?? ""} /></label>
                   <label className="full">Original creator YouTube link<input name="youtubeUrl" defaultValue={selected.youtube_url ?? ""} /></label>
-                  <label className="full">Your ClipToPDF/short YouTube link<input name="clipYoutubeUrl" defaultValue={selected.clip_youtube_url ?? ""} /></label>
+                  <label className="full">Your ClipToPDF/short YouTube link <span className="helper">(optional)</span><input name="clipYoutubeUrl" defaultValue={selected.clip_youtube_url ?? ""} /></label>
                   <label>Access level
                     <select name="requiredPlan" defaultValue={selected.required_plan ?? (selected.is_pro ? "pro" : "free") }>
                       <option value="free">Free</option>
@@ -287,9 +339,9 @@ export default function AdminPage() {
           <h2>Create a new visual PDF entry</h2>
           <div className="form-grid">
             <label className="full">Original creator YouTube link<input name="youtubeUrl" placeholder="Original video link from the creator" required /></label>
-            <label className="full">Your ClipToPDF/short YouTube link<input name="clipYoutubeUrl" placeholder="Your video link that promotes this PDF" required /></label>
+            <label className="full">Your ClipToPDF/short YouTube link <span className="helper">(optional — add later if needed)</span><input name="clipYoutubeUrl" placeholder="Your video link that promotes this PDF" /></label>
             <label>Title<input name="title" placeholder="Eggs with Tomato and Cheese" required /></label>
-            <label>Category<select name="category" defaultValue="recipe"><option value="recipe">Recipe</option><option value="animal">Endangered animal</option><option value="hadith">Hadith</option><option value="study">Study notes</option></select></label>
+            <label>Category<select name="category" defaultValue="recipe">{categoryOptions().map((category) => <option key={category.slug} value={category.slug}>{category.label}</option>)}</select></label>
             <label>Creator name<input name="creatorName" placeholder="Example: @BayashiTV" /></label>
             <label>Access level<select name="requiredPlan" defaultValue="free"><option value="free">Free</option><option value="pro">Pro</option><option value="premium">Premium</option></select></label>
             <label>Free-user watermark rule<select name="watermarkPolicy" defaultValue="after_first"><option value="after_first">Page 1 clear, rest watermarked</option><option value="all">Watermark all pages</option><option value="none">No watermark on this page set</option></select></label>
@@ -300,6 +352,33 @@ export default function AdminPage() {
           </div>
           <button className="btn" type="submit">Upload visual page</button>
         </form>
+      )}
+
+      {activeTab === "categories" && (
+        <section className="admin-split pop-in">
+          <form className="admin-card" onSubmit={saveCategory}>
+            <span className="badge">Category manager</span>
+            <h2>Add a dropdown category</h2>
+            <div className="form-grid single-form-grid">
+              <label>Category name<input name="label" placeholder="Example: Quran notes" required /></label>
+              <label>Optional slug<input name="slug" placeholder="example: quran-notes" /><span className="helper">Leave empty and the site creates it automatically.</span></label>
+            </div>
+            <button className="btn" type="submit">Add category</button>
+          </form>
+
+          <div className="panel page-list-panel">
+            <h2>Current dropdown categories</h2>
+            <div className="admin-page-list">
+              {categories.map((category) => (
+                <div className="admin-page-row" key={category.id}>
+                  <span><strong>{category.label}</strong><small>{category.slug}</small></span>
+                  <button className="btn ghost danger" type="button" onClick={() => deleteCategory(category.id)}>Remove</button>
+                </div>
+              ))}
+            </div>
+            <p className="helper">Removing a category hides it from future dropdowns. Existing pages will keep the old category text until you edit them.</p>
+          </div>
+        </section>
       )}
 
       {activeTab === "users" && (

@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type FormEvent } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabaseBrowser";
-import type { PdfItem } from "@/lib/types";
+import type { Category, PdfItem } from "@/lib/types";
 
 type UserInfo = {
   email?: string;
@@ -31,6 +31,27 @@ export default function CreatorPage() {
   const [setupError, setSetupError] = useState("");
   const [myPdfs, setMyPdfs] = useState<PdfItem[]>([]);
   const [selected, setSelected] = useState<PdfItem | null>(null);
+  const [categories, setCategories] = useState<Category[]>([]);
+
+
+  async function loadCategories() {
+    const response = await fetch("/api/categories", { cache: "no-store" });
+    const data = await response.json();
+    if (response.ok) setCategories(data.categories ?? []);
+  }
+
+  function categoryOptions(current?: string | null) {
+    const list = [...categories];
+    if (current && !list.some((category) => category.slug === current)) {
+      list.push({ id: current, slug: current, label: current });
+    }
+    return list.length > 0 ? list : [
+      { id: "recipe", slug: "recipe", label: "Recipe" },
+      { id: "animal", slug: "animal", label: "Endangered animal" },
+      { id: "hadith", slug: "hadith", label: "Hadith" },
+      { id: "study", slug: "study", label: "Study notes" }
+    ];
+  }
 
   async function loadMyPdfs(token: string) {
     const response = await fetch("/api/creator/my-pdfs", {
@@ -44,6 +65,7 @@ export default function CreatorPage() {
   useEffect(() => {
     let mounted = true;
     try {
+      loadCategories();
       const supabase = createSupabaseBrowserClient();
 
       supabase.auth.getSession().then(({ data }) => {
@@ -207,9 +229,9 @@ export default function CreatorPage() {
 
           <div className="form-grid">
             <label className="full">Original creator YouTube link<input name="youtubeUrl" placeholder="Original video link from the creator" required /></label>
-            <label className="full">Your ClipToPDF/short YouTube link<input name="clipYoutubeUrl" placeholder="Your video link that promotes this PDF" required /></label>
+            <label className="full">Your ClipToPDF/short YouTube link <span className="helper">(optional — you can add it later)</span><input name="clipYoutubeUrl" placeholder="Your video link that promotes this PDF" /></label>
             <label>Title<input name="title" placeholder="Eggs with Tomato and Cheese" required /></label>
-            <label>Category<select name="category" defaultValue="recipe"><option value="recipe">Recipe</option><option value="animal">Endangered animal</option><option value="hadith">Hadith</option><option value="study">Study notes</option></select></label>
+            <label>Category<select name="category" defaultValue="recipe">{categoryOptions().map((category) => <option key={category.slug} value={category.slug}>{category.label}</option>)}</select></label>
             <label>Creator name / handle<input name="creatorName" placeholder="Example: @simpledeliciousrecipes" defaultValue={user.name ?? ""} /></label>
             <label>Optional PDF file for download<input type="file" name="pdfFile" accept="application/pdf" /><span className="helper">Images are the main attraction. PDF is only for the download button.</span></label>
             <label>Custom free-user watermark image<input type="file" name="copyrightImage" accept="image/png,image/jpeg,image/webp" /><span className="helper">Optional. If empty, the admin default watermark is used.</span></label>
@@ -247,10 +269,10 @@ export default function CreatorPage() {
               <h3>Edit: {selected.title}</h3>
               <div className="form-grid">
                 <label>Title<input name="title" defaultValue={selected.title} /></label>
-                <label>Category<input name="category" defaultValue={selected.category} /></label>
+                <label>Category<select name="category" defaultValue={selected.category}>{categoryOptions(selected.category).map((category) => <option key={category.slug} value={category.slug}>{category.label}</option>)}</select></label>
                 <label>Creator name<input name="creatorName" defaultValue={selected.creator_name ?? ""} /></label>
                 <label className="full">Original creator YouTube link<input name="youtubeUrl" defaultValue={selected.youtube_url ?? ""} /></label>
-                <label className="full">Your ClipToPDF/short YouTube link<input name="clipYoutubeUrl" defaultValue={selected.clip_youtube_url ?? ""} /></label>
+                <label className="full">Your ClipToPDF/short YouTube link <span className="helper">(optional)</span><input name="clipYoutubeUrl" defaultValue={selected.clip_youtube_url ?? ""} /></label>
                 <label>Access level<select name="requiredPlan" defaultValue={selected.required_plan ?? (selected.is_pro ? "pro" : "free")}><option value="free">Free</option><option value="pro">Pro</option><option value="premium">Premium</option></select></label>
                 <label>Free-user watermark rule<select name="watermarkPolicy" defaultValue={selected.watermark_policy ?? "after_first"}><option value="after_first">Page 1 clear, rest watermarked</option><option value="all">Watermark all pages</option><option value="none">No watermark on this page set</option></select></label>
                 <label>Replace optional PDF<input type="file" name="pdfFile" accept="application/pdf" /></label>

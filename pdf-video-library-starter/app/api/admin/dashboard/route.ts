@@ -21,7 +21,7 @@ export async function GET(request: Request) {
   ]);
 
   const { count: viewsToday } = await supabaseAdmin
-    .from("user_pdf_views")
+    .from("pdf_view_events")
     .select("id", { count: "exact", head: true })
     .eq("view_date", today);
 
@@ -38,6 +38,31 @@ export async function GET(request: Request) {
 
   if (pdfError) return NextResponse.json({ error: pdfError.message }, { status: 500 });
 
+  const { data: categories } = await supabaseAdmin
+    .from("categories")
+    .select("id,slug,label,created_at")
+    .eq("is_active", true)
+    .order("label", { ascending: true });
+
+  const pdfIds = (pdfs ?? []).map((pdf: any) => pdf.id);
+  const viewTotals: Record<string, number> = {};
+  if (pdfIds.length > 0) {
+    const { data: viewEvents } = await supabaseAdmin
+      .from("pdf_view_events")
+      .select("pdf_id")
+      .in("pdf_id", pdfIds)
+      .limit(5000);
+    for (const event of viewEvents ?? []) {
+      const key = String((event as { pdf_id: string }).pdf_id);
+      viewTotals[key] = (viewTotals[key] ?? 0) + 1;
+    }
+  }
+
+  const pdfsWithStats = (pdfs ?? []).map((pdf: any) => ({
+    ...pdf,
+    total_views: viewTotals[pdf.id] ?? 0
+  }));
+
   const { data: users } = await supabaseAdmin
     .from("user_profiles")
     .select("id,user_id,email,display_name,avatar_url,plan,subscription_status,created_at")
@@ -52,8 +77,9 @@ export async function GET(request: Request) {
 
   return NextResponse.json({
     stats: { pdfCount, userCount, creatorCount, requestCount, viewsToday: viewsToday ?? 0, downloadsToday: downloadsToday ?? 0 },
-    pdfs: pdfs ?? [],
+    pdfs: pdfsWithStats,
     users: users ?? [],
+    categories: categories ?? [],
     settings: settingsRow?.value ?? {}
   });
 }

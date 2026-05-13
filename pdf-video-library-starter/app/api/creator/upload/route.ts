@@ -60,13 +60,12 @@ export async function POST(request: Request) {
 
   if (!title) return NextResponse.json({ error: "Title is required." }, { status: 400 });
   if (!youtubeUrl) return NextResponse.json({ error: "Original YouTube URL is required." }, { status: 400 });
-  if (!clipYoutubeUrl) return NextResponse.json({ error: "Your ClipToPDF/short YouTube URL is required." }, { status: 400 });
   if (pageImages.length === 0) return NextResponse.json({ error: "Upload at least one page image." }, { status: 400 });
 
   const videoId = extractYouTubeVideoId(youtubeUrl);
-  const clipVideoId = extractYouTubeVideoId(clipYoutubeUrl);
+  const clipVideoId = clipYoutubeUrl ? extractYouTubeVideoId(clipYoutubeUrl) : null;
   if (!videoId) return NextResponse.json({ error: "Invalid original YouTube URL." }, { status: 400 });
-  if (!clipVideoId) return NextResponse.json({ error: "Invalid ClipToPDF/short YouTube URL." }, { status: 400 });
+  if (clipYoutubeUrl && !clipVideoId) return NextResponse.json({ error: "Invalid ClipToPDF/short YouTube URL." }, { status: 400 });
 
   for (const image of pageImages) {
     if (image.type && !image.type.startsWith("image/")) {
@@ -123,7 +122,7 @@ export async function POST(request: Request) {
           video_id: videoId,
           youtube_url: youtubeUrl,
           clip_video_id: clipVideoId,
-          clip_youtube_url: clipYoutubeUrl,
+          clip_youtube_url: clipYoutubeUrl || null,
           title,
           category,
           creator_name: creatorName,
