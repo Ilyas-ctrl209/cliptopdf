@@ -33,6 +33,7 @@ export async function POST(request: Request) {
 
   const title = String(formData.get("title") ?? "").trim();
   const youtubeUrl = String(formData.get("youtubeUrl") ?? "").trim();
+  const clipYoutubeUrl = String(formData.get("clipYoutubeUrl") ?? "").trim();
   const category = String(formData.get("category") ?? "recipe").trim() || "recipe";
   const creatorName = String(formData.get("creatorName") ?? "").trim() || null;
   const description = String(formData.get("description") ?? "").trim() || null;
@@ -48,11 +49,14 @@ export async function POST(request: Request) {
     .filter((item): item is File => item instanceof File && item.size > 0);
 
   if (!title) return NextResponse.json({ error: "Title is required." }, { status: 400 });
-  if (!youtubeUrl) return NextResponse.json({ error: "YouTube URL is required." }, { status: 400 });
+  if (!youtubeUrl) return NextResponse.json({ error: "Original YouTube URL is required." }, { status: 400 });
+  if (!clipYoutubeUrl) return NextResponse.json({ error: "Your ClipToPDF/short YouTube URL is required." }, { status: 400 });
   if (pageImages.length === 0) return NextResponse.json({ error: "Upload at least one page image." }, { status: 400 });
 
   const videoId = extractYouTubeVideoId(youtubeUrl);
-  if (!videoId) return NextResponse.json({ error: "Invalid YouTube URL." }, { status: 400 });
+  const clipVideoId = extractYouTubeVideoId(clipYoutubeUrl);
+  if (!videoId) return NextResponse.json({ error: "Invalid original YouTube URL." }, { status: 400 });
+  if (!clipVideoId) return NextResponse.json({ error: "Invalid ClipToPDF/short YouTube URL." }, { status: 400 });
 
   for (const image of pageImages) {
     if (image.type && !image.type.startsWith("image/")) {
@@ -98,6 +102,8 @@ export async function POST(request: Request) {
         {
           video_id: videoId,
           youtube_url: youtubeUrl,
+          clip_video_id: clipVideoId,
+          clip_youtube_url: clipYoutubeUrl,
           title,
           category,
           creator_name: creatorName,

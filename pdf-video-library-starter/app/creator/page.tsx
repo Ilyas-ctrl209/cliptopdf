@@ -206,7 +206,8 @@ export default function CreatorPage() {
           </div>
 
           <div className="form-grid">
-            <label className="full">YouTube source link<input name="youtubeUrl" placeholder="https://www.youtube.com/watch?v=..." required /></label>
+            <label className="full">Original creator YouTube link<input name="youtubeUrl" placeholder="Original video link from the creator" required /></label>
+            <label className="full">Your ClipToPDF/short YouTube link<input name="clipYoutubeUrl" placeholder="Your video link that promotes this PDF" required /></label>
             <label>Title<input name="title" placeholder="Eggs with Tomato and Cheese" required /></label>
             <label>Category<select name="category" defaultValue="recipe"><option value="recipe">Recipe</option><option value="animal">Endangered animal</option><option value="hadith">Hadith</option><option value="study">Study notes</option></select></label>
             <label>Creator name / handle<input name="creatorName" placeholder="Example: @simpledeliciousrecipes" defaultValue={user.name ?? ""} /></label>
@@ -248,6 +249,8 @@ export default function CreatorPage() {
                 <label>Title<input name="title" defaultValue={selected.title} /></label>
                 <label>Category<input name="category" defaultValue={selected.category} /></label>
                 <label>Creator name<input name="creatorName" defaultValue={selected.creator_name ?? ""} /></label>
+                <label className="full">Original creator YouTube link<input name="youtubeUrl" defaultValue={selected.youtube_url ?? ""} /></label>
+                <label className="full">Your ClipToPDF/short YouTube link<input name="clipYoutubeUrl" defaultValue={selected.clip_youtube_url ?? ""} /></label>
                 <label>Access level<select name="requiredPlan" defaultValue={selected.required_plan ?? (selected.is_pro ? "pro" : "free")}><option value="free">Free</option><option value="pro">Pro</option><option value="premium">Premium</option></select></label>
                 <label>Free-user watermark rule<select name="watermarkPolicy" defaultValue={selected.watermark_policy ?? "after_first"}><option value="after_first">Page 1 clear, rest watermarked</option><option value="all">Watermark all pages</option><option value="none">No watermark on this page set</option></select></label>
                 <label>Replace optional PDF<input type="file" name="pdfFile" accept="application/pdf" /></label>

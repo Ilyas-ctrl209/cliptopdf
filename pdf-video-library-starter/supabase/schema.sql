@@ -57,6 +57,8 @@ create table if not exists public.pdfs (
   id uuid primary key default gen_random_uuid(),
   video_id text not null unique,
   youtube_url text not null,
+  clip_video_id text,
+  clip_youtube_url text,
   title text not null,
   category text not null default 'recipe',
   creator_name text,
@@ -74,6 +76,9 @@ create table if not exists public.pdfs (
 );
 
 alter table public.pdfs add column if not exists creator_user_id uuid references auth.users(id) on delete set null;
+alter table public.pdfs add column if not exists clip_video_id text;
+alter table public.pdfs add column if not exists clip_youtube_url text;
+create unique index if not exists pdfs_clip_video_id_unique on public.pdfs (clip_video_id) where clip_video_id is not null;
 alter table public.pdfs add column if not exists page_image_urls jsonb not null default '[]'::jsonb;
 alter table public.pdfs add column if not exists copyright_image_url text;
 alter table public.pdfs add column if not exists watermark_policy text not null default 'after_first';

@@ -57,7 +57,9 @@ export async function GET(request: Request) {
         thumbnail_url: pdf.thumbnail_url,
         is_pro: pdf.is_pro,
         youtube_url: pdf.youtube_url,
-        video_id: pdf.video_id
+        video_id: pdf.video_id,
+        clip_youtube_url: pdf.clip_youtube_url,
+        clip_video_id: pdf.clip_video_id
       }
     });
   }

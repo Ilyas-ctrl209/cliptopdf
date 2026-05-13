@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { isAdminPassword } from "@/lib/authHelpers";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { youtubeThumbnail } from "@/lib/youtube";
+import { extractYouTubeVideoId, youtubeThumbnail } from "@/lib/youtube";
 
 function safeFileName(name: string) {
   return name.toLowerCase().replace(/[^a-z0-9.\-_]+/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "") || "upload";
@@ -36,6 +36,12 @@ export async function POST(request: Request) {
   const normalizedPlan = requiredPlan === "premium" ? "premium" : requiredPlan === "pro" ? "pro" : "free";
   const rawWatermarkPolicy = String(formData.get("watermarkPolicy") ?? existing.watermark_policy ?? "after_first");
   const watermarkPolicy = rawWatermarkPolicy === "none" ? "none" : rawWatermarkPolicy === "all" ? "all" : "after_first";
+  const youtubeUrl = String(formData.get("youtubeUrl") ?? existing.youtube_url ?? "").trim();
+  const clipYoutubeUrl = String(formData.get("clipYoutubeUrl") ?? existing.clip_youtube_url ?? "").trim();
+  const videoId = youtubeUrl ? extractYouTubeVideoId(youtubeUrl) : null;
+  const clipVideoId = clipYoutubeUrl ? extractYouTubeVideoId(clipYoutubeUrl) : null;
+  if (youtubeUrl && !videoId) return NextResponse.json({ error: "Invalid original YouTube URL." }, { status: 400 });
+  if (clipYoutubeUrl && !clipVideoId) return NextResponse.json({ error: "Invalid ClipToPDF/short YouTube URL." }, { status: 400 });
   const bucket = process.env.SUPABASE_STORAGE_BUCKET || "pdfs";
   const stamp = Date.now();
 
@@ -50,7 +56,11 @@ export async function POST(request: Request) {
     description: String(formData.get("description") ?? "").trim() || null,
     required_plan: normalizedPlan,
     watermark_policy: watermarkPolicy,
-    is_pro: normalizedPlan !== "free"
+    is_pro: normalizedPlan !== "free",
+    youtube_url: youtubeUrl || existing.youtube_url,
+    video_id: videoId || existing.video_id,
+    clip_youtube_url: clipYoutubeUrl || null,
+    clip_video_id: clipVideoId || null
   };
 
   try {

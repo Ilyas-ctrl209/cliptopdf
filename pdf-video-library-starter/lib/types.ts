@@ -6,6 +6,8 @@ export type PdfItem = {
   id: string;
   video_id: string;
   youtube_url: string;
+  clip_video_id?: string | null;
+  clip_youtube_url?: string | null;
   title: string;
   category: string;
   creator_name: string | null;

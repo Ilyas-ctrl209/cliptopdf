@@ -14,7 +14,7 @@ export async function GET(request: Request) {
   const { data, error } = await supabaseAdmin
     .from("pdfs")
     .select("*")
-    .eq("video_id", videoId)
+    .or(`video_id.eq.${videoId},clip_video_id.eq.${videoId}`)
     .maybeSingle();
 
   if (error) {

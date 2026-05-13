@@ -203,14 +203,15 @@ export default function PdfReaderClient({ id }: { id: string }) {
           </div>
           <div className="card-actions">
             <button className="btn" type="button" onClick={downloadPdf}>{pdf.pdf_url ? "Download PDF version" : "Download clean page"}</button>
-            <a className="btn ghost" href={pdf.youtube_url} target="_blank">Watch source</a>
+            <a className="btn ghost" href={pdf.youtube_url} target="_blank">Watch original</a>
+            {pdf.clip_youtube_url && <a className="btn ghost" href={pdf.clip_youtube_url} target="_blank">Watch ClipToPDF video</a>}
           </div>
           {downloadMessage && <p className={downloadMessage.includes("blocked") || downloadMessage.includes("only") ? "message error" : "message success"}>{downloadMessage}</p>}
           {showWatermark && <p className="helper">Free accounts can read 10 visual PDFs per day and download 1 clean file per day. Watermark rules are controlled by the creator/admin.</p>}
         </div>
 
         <div className="panel pop-in delay-1">
-          <h2>Source video</h2>
+          <h2>Original video</h2>
           <iframe
             className="youtube-frame"
             src={youtubeEmbedUrl(pdf.video_id)}
@@ -219,6 +220,19 @@ export default function PdfReaderClient({ id }: { id: string }) {
             allowFullScreen
           />
         </div>
+
+        {pdf.clip_video_id && (
+          <div className="panel pop-in delay-2">
+            <h2>ClipToPDF video</h2>
+            <iframe
+              className="youtube-frame"
+              src={youtubeEmbedUrl(pdf.clip_video_id)}
+              title="ClipToPDF YouTube video"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+              allowFullScreen
+            />
+          </div>
+        )}
       </aside>
     </main>
   );

@@ -248,6 +248,8 @@ export default function AdminPage() {
                   <label>Title<input name="title" defaultValue={selected.title} /></label>
                   <label>Category<input name="category" defaultValue={selected.category} /></label>
                   <label>Creator name<input name="creatorName" defaultValue={selected.creator_name ?? ""} /></label>
+                  <label className="full">Original creator YouTube link<input name="youtubeUrl" defaultValue={selected.youtube_url ?? ""} /></label>
+                  <label className="full">Your ClipToPDF/short YouTube link<input name="clipYoutubeUrl" defaultValue={selected.clip_youtube_url ?? ""} /></label>
                   <label>Access level
                     <select name="requiredPlan" defaultValue={selected.required_plan ?? (selected.is_pro ? "pro" : "free") }>
                       <option value="free">Free</option>
@@ -284,7 +286,8 @@ export default function AdminPage() {
           <span className="badge">Admin upload</span>
           <h2>Create a new visual PDF entry</h2>
           <div className="form-grid">
-            <label className="full">YouTube link<input name="youtubeUrl" placeholder="https://www.youtube.com/watch?v=..." required /></label>
+            <label className="full">Original creator YouTube link<input name="youtubeUrl" placeholder="Original video link from the creator" required /></label>
+            <label className="full">Your ClipToPDF/short YouTube link<input name="clipYoutubeUrl" placeholder="Your video link that promotes this PDF" required /></label>
             <label>Title<input name="title" placeholder="Eggs with Tomato and Cheese" required /></label>
             <label>Category<select name="category" defaultValue="recipe"><option value="recipe">Recipe</option><option value="animal">Endangered animal</option><option value="hadith">Hadith</option><option value="study">Study notes</option></select></label>
             <label>Creator name<input name="creatorName" placeholder="Example: @BayashiTV" /></label>
