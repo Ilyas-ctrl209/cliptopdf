@@ -28,8 +28,11 @@ export async function POST(request: Request) {
 
   const pdf = pdfData as PdfItem;
 
-  if (!pdf.pdf_url) {
-    return NextResponse.json({ error: "No downloadable PDF file was uploaded for this entry yet." }, { status: 404 });
+  const pageImages = Array.isArray(pdf.page_image_urls) ? pdf.page_image_urls.filter(Boolean) : [];
+  const cleanDownloadUrl = pdf.pdf_url || pageImages[0] || null;
+
+  if (!cleanDownloadUrl) {
+    return NextResponse.json({ error: "No downloadable file was uploaded for this entry yet." }, { status: 404 });
   }
 
   const requiredPlan = pdf.required_plan ?? (pdf.is_pro ? "pro" : "free");
@@ -61,5 +64,5 @@ export async function POST(request: Request) {
     .update({ download_count: (pdf.download_count ?? 0) + 1 })
     .eq("id", id);
 
-  return NextResponse.json({ ok: true, url: pdf.pdf_url, profile });
+  return NextResponse.json({ ok: true, url: cleanDownloadUrl, kind: pdf.pdf_url ? "pdf" : "image", profile });
 }

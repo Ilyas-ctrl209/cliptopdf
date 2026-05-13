@@ -39,6 +39,8 @@ export async function POST(request: Request) {
   const rawPlan = String(formData.get("requiredPlan") ?? "").trim();
   const legacyIsPro = String(formData.get("isPro") ?? "false") === "true";
   const requiredPlan = rawPlan === "premium" ? "premium" : rawPlan === "pro" || legacyIsPro ? "pro" : "free";
+  const rawWatermarkPolicy = String(formData.get("watermarkPolicy") ?? "after_first").trim();
+  const watermarkPolicy = rawWatermarkPolicy === "none" ? "none" : rawWatermarkPolicy === "all" ? "all" : "after_first";
   const pdfFile = formData.get("pdfFile");
   const copyrightImage = formData.get("copyrightImage");
   const pageImages = formData
@@ -104,6 +106,7 @@ export async function POST(request: Request) {
           page_image_urls: pageImageUrls,
           thumbnail_url: pageImageUrls[0] ?? youtubeThumbnail(videoId),
           copyright_image_url: copyrightImageUrl,
+          watermark_policy: watermarkPolicy,
           is_pro: requiredPlan !== "free",
           required_plan: requiredPlan
         },

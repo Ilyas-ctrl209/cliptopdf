@@ -1,5 +1,6 @@
 export type UserPlan = "free" | "pro" | "premium" | "admin";
 export type RequiredPlan = "free" | "pro" | "premium";
+export type WatermarkPolicy = "none" | "after_first" | "all";
 
 export type PdfItem = {
   id: string;
@@ -14,6 +15,7 @@ export type PdfItem = {
   page_image_urls: string[] | null;
   thumbnail_url: string | null;
   copyright_image_url?: string | null;
+  watermark_policy?: WatermarkPolicy | null;
   is_pro: boolean;
   required_plan?: RequiredPlan | null;
   download_count: number;
@@ -40,4 +42,5 @@ export type SiteSettings = {
   hero_subtitle?: string;
   recipe_hero_image_url?: string;
   animal_hero_image_url?: string;
+  default_watermark_image_url?: string;
 };

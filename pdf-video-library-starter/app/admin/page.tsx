@@ -31,6 +31,13 @@ function pageCount(pdf: PdfItem) {
   return Array.isArray(pdf.page_image_urls) ? pdf.page_image_urls.length : 0;
 }
 
+function watermarkLabel(pdf: PdfItem) {
+  const policy = pdf.watermark_policy ?? "after_first";
+  if (policy === "none") return "No free watermark";
+  if (policy === "all") return "Watermark all pages";
+  return "Page 1 clear, rest watermarked";
+}
+
 export default function AdminPage() {
   const [password, setPassword] = useState("");
   const [unlocked, setUnlocked] = useState(false);
@@ -207,10 +214,12 @@ export default function AdminPage() {
             <label className="full">Hero subtitle<textarea name="heroSubtitle" defaultValue={settings.hero_subtitle ?? "Paste a YouTube link and open the visual PDF version instantly."} /></label>
             <label>Recipe PDF card image<input type="file" name="recipeHeroImage" accept="image/png,image/jpeg,image/webp" /></label>
             <label>Animal PDF card image<input type="file" name="animalHeroImage" accept="image/png,image/jpeg,image/webp" /></label>
+            <label>Default free-user watermark image<input type="file" name="defaultWatermarkImage" accept="image/png,image/jpeg,image/webp" /><span className="helper">Used when a page does not have its own watermark uploaded.</span></label>
           </div>
           <div className="settings-preview">
             {settings.recipe_hero_image_url && <img src={settings.recipe_hero_image_url} alt="Recipe hero" />}
             {settings.animal_hero_image_url && <img src={settings.animal_hero_image_url} alt="Animal hero" />}
+            {settings.default_watermark_image_url && <img src={settings.default_watermark_image_url} alt="Default watermark" />}
           </div>
           <button className="btn" type="submit">Save homepage</button>
         </form>
@@ -224,7 +233,7 @@ export default function AdminPage() {
               {pdfs.map((pdf) => (
                 <button className={selected?.id === pdf.id ? "admin-page-row selected" : "admin-page-row"} key={pdf.id} onClick={() => setSelected(pdf)}>
                   <img src={pdf.thumbnail_url ?? ""} alt="" />
-                  <span><strong>{pdf.title}</strong><small>{accessLabel(pdf)} • {pdf.category} • {pageCount(pdf)} images</small></span>
+                  <span><strong>{pdf.title}</strong><small>{accessLabel(pdf)} • {pdf.category} • {pageCount(pdf)} images • {watermarkLabel(pdf)}</small></span>
                 </button>
               ))}
             </div>
@@ -246,10 +255,18 @@ export default function AdminPage() {
                       <option value="premium">Premium</option>
                     </select>
                   </label>
+                  <label>Free-user watermark rule
+                    <select name="watermarkPolicy" defaultValue={selected.watermark_policy ?? "after_first"}>
+                      <option value="after_first">Page 1 clear, rest watermarked</option>
+                      <option value="all">Watermark all pages</option>
+                      <option value="none">No watermark on this page set</option>
+                    </select>
+                    <span className="helper">This controls free accounts only. Pro/Premium do not see watermarks.</span>
+                  </label>
                   <label>Description<textarea name="description" defaultValue={selected.description ?? ""} /></label>
                   <label>Replace page images<input type="file" name="pageImages" accept="image/png,image/jpeg,image/webp" multiple /></label>
                   <label>Replace optional PDF<input type="file" name="pdfFile" accept="application/pdf" /></label>
-                  <label>Replace free-user watermark<input type="file" name="copyrightImage" accept="image/png,image/jpeg,image/webp" /></label>
+                  <label>Replace custom free-user watermark<input type="file" name="copyrightImage" accept="image/png,image/jpeg,image/webp" /><span className="helper">If empty, default admin watermark is used.</span></label>
                 </div>
                 <div className="card-actions">
                   <button className="btn" type="submit">Save page</button>
@@ -272,8 +289,9 @@ export default function AdminPage() {
             <label>Category<select name="category" defaultValue="recipe"><option value="recipe">Recipe</option><option value="animal">Endangered animal</option><option value="hadith">Hadith</option><option value="study">Study notes</option></select></label>
             <label>Creator name<input name="creatorName" placeholder="Example: @BayashiTV" /></label>
             <label>Access level<select name="requiredPlan" defaultValue="free"><option value="free">Free</option><option value="pro">Pro</option><option value="premium">Premium</option></select></label>
+            <label>Free-user watermark rule<select name="watermarkPolicy" defaultValue="after_first"><option value="after_first">Page 1 clear, rest watermarked</option><option value="all">Watermark all pages</option><option value="none">No watermark on this page set</option></select></label>
             <label>Optional PDF file<input type="file" name="pdfFile" accept="application/pdf" /></label>
-            <label>Free-user watermark image<input type="file" name="copyrightImage" accept="image/png,image/jpeg,image/webp" /></label>
+            <label>Custom free-user watermark image<input type="file" name="copyrightImage" accept="image/png,image/jpeg,image/webp" /><span className="helper">Optional. If empty, the default admin watermark is used.</span></label>
             <label className="full">Page images<input type="file" name="pageImages" accept="image/png,image/jpeg,image/webp" multiple required /><span className="helper">Upload the attractive page images. The first image becomes the card cover.</span></label>
             <label className="full">Description<textarea name="description" placeholder="Short description..." /></label>
           </div>

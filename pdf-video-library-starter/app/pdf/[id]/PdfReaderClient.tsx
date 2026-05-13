@@ -23,6 +23,8 @@ type DetailResponse = {
   access?: {
     isPaid: boolean;
     showFreeWatermark: boolean;
+    watermarkPolicy?: "none" | "after_first" | "all";
+    defaultWatermarkImageUrl?: string | null;
     canDownloadToday: boolean;
   };
   limits?: Limits;
@@ -143,7 +145,14 @@ export default function PdfReaderClient({ id }: { id: string }) {
   const pdf = data.pdf;
   const pageImages = normalizeImages(pdf);
   const showWatermark = data.access?.showFreeWatermark ?? true;
-  const watermarkImage = pdf.copyright_image_url;
+  const watermarkPolicy = data.access?.watermarkPolicy ?? pdf.watermark_policy ?? "after_first";
+  const watermarkImage = pdf.copyright_image_url || data.access?.defaultWatermarkImageUrl || null;
+  function shouldWatermarkPage(index: number) {
+    if (!showWatermark) return false;
+    if (watermarkPolicy === "none") return false;
+    if (watermarkPolicy === "all") return true;
+    return index > 0;
+  }
   const planLabel = data.profile?.plan === "admin" ? "ADMIN" : data.profile?.plan === "premium" ? "PREMIUM" : data.profile?.plan === "pro" ? "PRO" : "FREE";
 
   return (
@@ -151,17 +160,20 @@ export default function PdfReaderClient({ id }: { id: string }) {
       <section className="viewer image-viewer">
         {pageImages.length > 0 ? (
           <div className="page-image-stack">
-            {pageImages.map((src, index) => (
-              <figure className={`reader-page animated-page ${showWatermark ? "free-watermarked" : ""}`} key={src}>
+            {pageImages.map((src, index) => {
+              const pageWatermarked = shouldWatermarkPage(index);
+              return (
+              <figure className={`reader-page animated-page ${pageWatermarked ? "free-watermarked" : ""}`} key={src}>
                 <img src={src} alt={`${pdf.title} page ${index + 1}`} draggable={false} />
-                {showWatermark && (
+                {pageWatermarked && (
                   <div className="copyright-layer" aria-hidden="true">
                     {watermarkImage ? <img src={watermarkImage} alt="" /> : <span>© {pdf.creator_name || "ClipToPDF"} • Free preview</span>}
                   </div>
                 )}
-                <figcaption>Page {index + 1}</figcaption>
+                <figcaption>{pageWatermarked ? `Page ${index + 1} • free preview watermark` : `Page ${index + 1}`}</figcaption>
               </figure>
-            ))}
+              );
+            })}
           </div>
         ) : (
           <div className="locked">
@@ -190,11 +202,11 @@ export default function PdfReaderClient({ id }: { id: string }) {
             <span>Downloads left: {data.limits?.downloadsLeft ?? "—"}</span>
           </div>
           <div className="card-actions">
-            {pdf.pdf_url && <button className="btn" type="button" onClick={downloadPdf}>Download PDF version</button>}
+            <button className="btn" type="button" onClick={downloadPdf}>{pdf.pdf_url ? "Download PDF version" : "Download clean page"}</button>
             <a className="btn ghost" href={pdf.youtube_url} target="_blank">Watch source</a>
           </div>
           {downloadMessage && <p className={downloadMessage.includes("blocked") || downloadMessage.includes("only") ? "message error" : "message success"}>{downloadMessage}</p>}
-          {showWatermark && <p className="helper">Free users see a creator copyright layer. Pro will remove it later.</p>}
+          {showWatermark && <p className="helper">Free accounts can read 10 visual PDFs per day and download 1 clean file per day. Watermark rules are controlled by the creator/admin.</p>}
         </div>
 
         <div className="panel pop-in delay-1">

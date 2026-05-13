@@ -39,6 +39,7 @@ export async function POST(request: Request) {
   const stamp = Date.now();
   const recipeHeroImage = formData.get("recipeHeroImage");
   const animalHeroImage = formData.get("animalHeroImage");
+  const defaultWatermarkImage = formData.get("defaultWatermarkImage");
 
   try {
     if (recipeHeroImage instanceof File && recipeHeroImage.size > 0) {
@@ -48,6 +49,10 @@ export async function POST(request: Request) {
     if (animalHeroImage instanceof File && animalHeroImage.size > 0) {
       if (animalHeroImage.type && !animalHeroImage.type.startsWith("image/")) return NextResponse.json({ error: "Animal hero must be an image." }, { status: 400 });
       settings.animal_hero_image_url = await uploadPublicFile(bucket, `site/animal-${stamp}-${safeFileName(animalHeroImage.name)}`, animalHeroImage);
+    }
+    if (defaultWatermarkImage instanceof File && defaultWatermarkImage.size > 0) {
+      if (defaultWatermarkImage.type && !defaultWatermarkImage.type.startsWith("image/")) return NextResponse.json({ error: "Default watermark must be an image." }, { status: 400 });
+      settings.default_watermark_image_url = await uploadPublicFile(bucket, `site/default-watermark-${stamp}-${safeFileName(defaultWatermarkImage.name)}`, defaultWatermarkImage);
     }
 
     const { data, error } = await supabaseAdmin

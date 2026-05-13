@@ -11,6 +11,7 @@ type NavUser = {
 
 export default function AuthNav() {
   const [user, setUser] = useState<NavUser | null>(null);
+  const [authReady, setAuthReady] = useState(false);
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
 
@@ -22,6 +23,7 @@ export default function AuthNav() {
       const authUser = data.user;
       if (!authUser) {
         setUser(null);
+        setAuthReady(true);
         return;
       }
 
@@ -31,6 +33,7 @@ export default function AuthNav() {
         name: String(metadata.full_name ?? metadata.name ?? authUser.email ?? "Account"),
         avatarUrl: typeof metadata.avatar_url === "string" ? metadata.avatar_url : null
       });
+      setAuthReady(true);
     }
 
     loadUser();
@@ -65,7 +68,9 @@ export default function AuthNav() {
     <nav>
       <a href="/">Home</a>
       <a href="/pricing">Pricing</a>
-      {user ? (
+      {!authReady ? (
+        <span className="nav-loading-chip" aria-label="Checking account">Account...</span>
+      ) : user ? (
         <div className="account-menu" ref={menuRef}>
           <button className="account-chip" onClick={() => setOpen((value) => !value)} type="button">
             {user.avatarUrl ? (

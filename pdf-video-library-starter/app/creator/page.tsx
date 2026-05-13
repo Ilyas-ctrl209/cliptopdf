@@ -2,12 +2,25 @@
 
 import { useEffect, useState, type FormEvent } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabaseBrowser";
+import type { PdfItem } from "@/lib/types";
 
 type UserInfo = {
   email?: string;
   name?: string;
   avatar?: string;
 };
+
+function accessLabel(pdf: PdfItem) {
+  const required = pdf.required_plan ?? (pdf.is_pro ? "pro" : "free");
+  return required === "premium" ? "Premium" : required === "pro" ? "Pro" : "Free";
+}
+
+function watermarkLabel(pdf: PdfItem) {
+  const policy = pdf.watermark_policy ?? "after_first";
+  if (policy === "none") return "No watermark";
+  if (policy === "all") return "All pages watermarked";
+  return "Page 1 clear, rest watermarked";
+}
 
 export default function CreatorPage() {
   const [user, setUser] = useState<UserInfo | null>(null);
@@ -16,6 +29,17 @@ export default function CreatorPage() {
   const [uploading, setUploading] = useState(false);
   const [message, setMessage] = useState("");
   const [setupError, setSetupError] = useState("");
+  const [myPdfs, setMyPdfs] = useState<PdfItem[]>([]);
+  const [selected, setSelected] = useState<PdfItem | null>(null);
+
+  async function loadMyPdfs(token: string) {
+    const response = await fetch("/api/creator/my-pdfs", {
+      headers: { Authorization: `Bearer ${token}` },
+      cache: "no-store"
+    });
+    const data = await response.json();
+    if (response.ok) setMyPdfs(data.pdfs ?? []);
+  }
 
   useEffect(() => {
     let mounted = true;
@@ -25,24 +49,28 @@ export default function CreatorPage() {
       supabase.auth.getSession().then(({ data }) => {
         if (!mounted) return;
         const session = data.session;
-        setAccessToken(session?.access_token ?? null);
+        const token = session?.access_token ?? null;
+        setAccessToken(token);
         setUser(session?.user ? {
           email: session.user.email ?? "",
           name: String(session.user.user_metadata?.full_name ?? session.user.user_metadata?.name ?? "Creator"),
           avatar: String(session.user.user_metadata?.avatar_url ?? "")
         } : null);
         setLoadingUser(false);
+        if (token) loadMyPdfs(token);
       });
 
       const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
         if (!mounted) return;
-        setAccessToken(session?.access_token ?? null);
+        const token = session?.access_token ?? null;
+        setAccessToken(token);
         setUser(session?.user ? {
           email: session.user.email ?? "",
           name: String(session.user.user_metadata?.full_name ?? session.user.user_metadata?.name ?? "Creator"),
           avatar: String(session.user.user_metadata?.avatar_url ?? "")
         } : null);
         setLoadingUser(false);
+        if (token) loadMyPdfs(token);
       });
 
       return () => {
@@ -75,12 +103,11 @@ export default function CreatorPage() {
     const form = e.currentTarget;
     const formData = new FormData(form);
     formData.set("requiredPlan", String(formData.get("requiredPlan") ?? "free"));
+    formData.set("watermarkPolicy", String(formData.get("watermarkPolicy") ?? "after_first"));
 
     const response = await fetch("/api/creator/upload", {
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${accessToken}`
-      },
+      headers: { Authorization: `Bearer ${accessToken}` },
       body: formData
     });
 
@@ -94,6 +121,32 @@ export default function CreatorPage() {
 
     setMessage(`Uploaded: ${data.pdf.title}`);
     form.reset();
+    await loadMyPdfs(accessToken);
+  }
+
+  async function updateSelected(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (!accessToken || !selected) return;
+    setMessage("Updating your page...");
+    const formData = new FormData(e.currentTarget);
+    formData.set("id", selected.id);
+    formData.set("watermarkPolicy", String(formData.get("watermarkPolicy") ?? selected.watermark_policy ?? "after_first"));
+
+    const response = await fetch("/api/creator/update-pdf", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${accessToken}` },
+      body: formData
+    });
+    const data = await response.json();
+
+    if (!response.ok) {
+      setMessage(data.error ?? "Update failed.");
+      return;
+    }
+
+    setMessage(`Updated: ${data.pdf.title}`);
+    setSelected(data.pdf);
+    await loadMyPdfs(accessToken);
   }
 
   if (loadingUser) {
@@ -119,7 +172,7 @@ export default function CreatorPage() {
         <section className="auth-card">
           <span className="badge">Creator Studio</span>
           <h1>Login required</h1>
-          <p className="helper big-helper">Login with Google first, then you can upload recipe page images.</p>
+          <p className="helper big-helper">Login with Google first, then you can upload and edit your visual PDF pages.</p>
           <a className="btn" href="/login">Login with Google</a>
         </section>
       </main>
@@ -138,85 +191,78 @@ export default function CreatorPage() {
           </div>
         </div>
         <p className="helper big-helper">
-          Upload page images first. The first image becomes the attractive cover, and visitors read image pages first. The optional PDF file stays for download, but free users only get 1 download per day.
+          Upload page images first. The first image becomes the attractive cover. You can edit previous uploads below.
         </p>
         <button className="btn ghost" onClick={logout} type="button">Logout</button>
       </section>
 
-      <form className="admin-card creator-form" onSubmit={submit}>
-        <div className="section-title compact-title">
-          <div>
-            <span className="badge">Upload</span>
-            <h2>Create visual PDF entry</h2>
+      <section className="creator-main-stack">
+        <form className="admin-card creator-form" onSubmit={submit}>
+          <div className="section-title compact-title">
+            <div>
+              <span className="badge">Upload</span>
+              <h2>Create visual PDF entry</h2>
+            </div>
           </div>
+
+          <div className="form-grid">
+            <label className="full">YouTube source link<input name="youtubeUrl" placeholder="https://www.youtube.com/watch?v=..." required /></label>
+            <label>Title<input name="title" placeholder="Eggs with Tomato and Cheese" required /></label>
+            <label>Category<select name="category" defaultValue="recipe"><option value="recipe">Recipe</option><option value="animal">Endangered animal</option><option value="hadith">Hadith</option><option value="study">Study notes</option></select></label>
+            <label>Creator name / handle<input name="creatorName" placeholder="Example: @simpledeliciousrecipes" defaultValue={user.name ?? ""} /></label>
+            <label>Optional PDF file for download<input type="file" name="pdfFile" accept="application/pdf" /><span className="helper">Images are the main attraction. PDF is only for the download button.</span></label>
+            <label>Custom free-user watermark image<input type="file" name="copyrightImage" accept="image/png,image/jpeg,image/webp" /><span className="helper">Optional. If empty, the admin default watermark is used.</span></label>
+            <label className="full">Page images — upload page 1, page 2, page 3...<input type="file" name="pageImages" accept="image/png,image/jpeg,image/webp" multiple required /><span className="helper">Use PNG/JPG page images. This is what visitors will read.</span></label>
+            <label className="full">Description<textarea name="description" placeholder="Short description of this visual PDF..." /></label>
+            <label>Access level<select name="requiredPlan" defaultValue="free"><option value="free">Free</option><option value="pro">Pro locked</option><option value="premium">Premium locked</option></select></label>
+            <label>Free-user watermark rule<select name="watermarkPolicy" defaultValue="after_first"><option value="after_first">Page 1 clear, rest watermarked</option><option value="all">Watermark all pages</option><option value="none">No watermark on this page set</option></select></label>
+          </div>
+
+          <div className="card-actions">
+            <button className="btn" type="submit" disabled={uploading}>{uploading ? "Uploading..." : "Upload visual pages"}</button>
+            <a className="btn ghost" href="/">Back home</a>
+          </div>
+          {message && <p className={message.includes("Uploaded") || message.includes("Updated") ? "message success" : "message error"}>{message}</p>}
+        </form>
+
+        <div className="admin-card creator-form creator-edit-box">
+          <div className="section-title compact-title">
+            <div>
+              <span className="badge">My uploads</span>
+              <h2>Edit previous work</h2>
+            </div>
+          </div>
+          <div className="creator-upload-list">
+            {myPdfs.length === 0 ? <p className="helper">No uploads yet.</p> : myPdfs.map((pdf) => (
+              <button key={pdf.id} type="button" className={selected?.id === pdf.id ? "admin-page-row selected" : "admin-page-row"} onClick={() => setSelected(pdf)}>
+                <img src={pdf.thumbnail_url ?? ""} alt="" />
+                <span><strong>{pdf.title}</strong><small>{accessLabel(pdf)} • {watermarkLabel(pdf)}</small></span>
+              </button>
+            ))}
+          </div>
+
+          {selected && (
+            <form onSubmit={updateSelected} className="creator-edit-form">
+              <h3>Edit: {selected.title}</h3>
+              <div className="form-grid">
+                <label>Title<input name="title" defaultValue={selected.title} /></label>
+                <label>Category<input name="category" defaultValue={selected.category} /></label>
+                <label>Creator name<input name="creatorName" defaultValue={selected.creator_name ?? ""} /></label>
+                <label>Access level<select name="requiredPlan" defaultValue={selected.required_plan ?? (selected.is_pro ? "pro" : "free")}><option value="free">Free</option><option value="pro">Pro</option><option value="premium">Premium</option></select></label>
+                <label>Free-user watermark rule<select name="watermarkPolicy" defaultValue={selected.watermark_policy ?? "after_first"}><option value="after_first">Page 1 clear, rest watermarked</option><option value="all">Watermark all pages</option><option value="none">No watermark on this page set</option></select></label>
+                <label>Replace optional PDF<input type="file" name="pdfFile" accept="application/pdf" /></label>
+                <label>Replace custom watermark<input type="file" name="copyrightImage" accept="image/png,image/jpeg,image/webp" /></label>
+                <label className="full">Replace page images<input type="file" name="pageImages" accept="image/png,image/jpeg,image/webp" multiple /></label>
+                <label className="full">Description<textarea name="description" defaultValue={selected.description ?? ""} /></label>
+              </div>
+              <div className="card-actions">
+                <button className="btn" type="submit">Save changes</button>
+                <a className="btn ghost" href={`/pdf/${selected.id}`} target="_blank">Preview</a>
+              </div>
+            </form>
+          )}
         </div>
-
-        <div className="form-grid">
-          <label className="full">
-            YouTube source link
-            <input name="youtubeUrl" placeholder="https://www.youtube.com/watch?v=..." required />
-          </label>
-
-          <label>
-            Title
-            <input name="title" placeholder="Eggs with Tomato and Cheese" required />
-          </label>
-
-          <label>
-            Category
-            <select name="category" defaultValue="recipe">
-              <option value="recipe">Recipe</option>
-              <option value="animal">Endangered animal</option>
-              <option value="hadith">Hadith</option>
-              <option value="study">Study notes</option>
-            </select>
-          </label>
-
-          <label>
-            Creator name / handle
-            <input name="creatorName" placeholder="Example: @simpledeliciousrecipes" defaultValue={user.name ?? ""} />
-          </label>
-
-          <label>
-            Optional PDF file for download
-            <input type="file" name="pdfFile" accept="application/pdf" />
-            <span className="helper">Images are the main attraction. PDF is only for the download button.</span>
-          </label>
-
-          <label>
-            Free-user copyright / watermark image
-            <input type="file" name="copyrightImage" accept="image/png,image/jpeg,image/webp" />
-            <span className="helper">Optional. This appears over page images for free users only.</span>
-          </label>
-
-          <label className="full">
-            Page images — upload page 1, page 2, page 3...
-            <input type="file" name="pageImages" accept="image/png,image/jpeg,image/webp" multiple required />
-            <span className="helper">Use the PNG/JPG page images you showed me. This is what visitors will read.</span>
-          </label>
-
-          <label className="full">
-            Description
-            <textarea name="description" placeholder="Short description of this visual PDF..." />
-          </label>
-
-          <label className="full">
-            Access level
-            <select name="requiredPlan" defaultValue="free">
-              <option value="free">Free</option>
-              <option value="pro">Pro locked</option>
-              <option value="premium">Premium locked</option>
-            </select>
-          </label>
-        </div>
-
-        <div className="card-actions">
-          <button className="btn" type="submit" disabled={uploading}>{uploading ? "Uploading..." : "Upload visual pages"}</button>
-          <a className="btn ghost" href="/">Back home</a>
-        </div>
-
-        {message && <p className={message.includes("Uploaded") ? "message success" : "message error"}>{message}</p>}
-      </form>
+      </section>
     </main>
   );
 }

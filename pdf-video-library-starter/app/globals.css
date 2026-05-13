@@ -767,3 +767,24 @@ label { display: grid; gap: 7px; font-weight: 900; color: #342f24; }
   .account-name { display: none; }
   .account-dropdown { right: -16px; width: 260px; }
 }
+
+/* Watermark rules + creator edit update */
+.nav-loading-chip {
+  padding: 9px 13px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: rgba(255,255,255,0.8);
+  color: var(--muted);
+  font-weight: 900;
+  animation: pulse 1s ease-in-out infinite;
+}
+.creator-main-stack { display: grid; gap: 22px; }
+.creator-edit-box { max-width: none; }
+.creator-upload-list { display: grid; gap: 10px; margin: 16px 0; }
+.creator-edit-form { margin-top: 20px; padding-top: 18px; border-top: 1px solid var(--border); }
+.creator-edit-form h3 { margin: 0 0 14px; font-size: 1.35rem; letter-spacing: -0.03em; }
+.copyright-layer {
+  background:
+    radial-gradient(circle at center, rgba(255,255,255,0.2), transparent 58%),
+    repeating-linear-gradient(-28deg, rgba(255,255,255,0.06) 0 30px, rgba(29,27,22,0.1) 30px 62px);
+}

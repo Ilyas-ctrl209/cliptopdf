@@ -31,6 +31,13 @@ export async function GET(request: Request) {
   const pdf = pdfData as PdfItem;
   const paid = isPaidPlan(profile.plan);
 
+  const { data: settingsRow } = await supabaseAdmin
+    .from("site_settings")
+    .select("value")
+    .eq("key", "home")
+    .maybeSingle();
+  const defaultWatermarkImageUrl = String((settingsRow?.value as Record<string, unknown> | null)?.default_watermark_image_url ?? "") || null;
+
   const requiredPlan = pdf.required_plan ?? (pdf.is_pro ? "pro" : "free");
 
   if (!canAccessRequiredPlan(profile.plan, requiredPlan)) {
@@ -127,7 +134,9 @@ export async function GET(request: Request) {
     profile,
     access: {
       isPaid: paid,
-      showFreeWatermark: !paid,
+      showFreeWatermark: !paid && (pdf.watermark_policy ?? "after_first") !== "none",
+      watermarkPolicy: pdf.watermark_policy ?? "after_first",
+      defaultWatermarkImageUrl,
       canDownloadToday: paid || (usedDownloads ?? 0) < 1
     },
     limits: {

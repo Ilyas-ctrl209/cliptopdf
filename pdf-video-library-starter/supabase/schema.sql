@@ -66,6 +66,7 @@ create table if not exists public.pdfs (
   page_image_urls jsonb not null default '[]'::jsonb,
   thumbnail_url text,
   copyright_image_url text,
+  watermark_policy text not null default 'after_first',
   required_plan text not null default 'free',
   is_pro boolean not null default false,
   download_count integer not null default 0,
@@ -75,6 +76,7 @@ create table if not exists public.pdfs (
 alter table public.pdfs add column if not exists creator_user_id uuid references auth.users(id) on delete set null;
 alter table public.pdfs add column if not exists page_image_urls jsonb not null default '[]'::jsonb;
 alter table public.pdfs add column if not exists copyright_image_url text;
+alter table public.pdfs add column if not exists watermark_policy text not null default 'after_first';
 alter table public.pdfs add column if not exists required_plan text not null default 'free';
 alter table public.pdfs alter column pdf_url drop not null;
 update public.pdfs set required_plan = 'pro' where is_pro = true and required_plan = 'free';
@@ -95,6 +97,24 @@ end $$;
 
 alter table public.pdfs
   add constraint pdfs_required_plan_check check (required_plan in ('free','pro','premium'));
+
+do $$
+declare c record;
+begin
+  for c in
+    select conname
+    from pg_constraint
+    where conrelid = 'public.pdfs'::regclass
+      and contype = 'c'
+      and pg_get_constraintdef(oid) like '%watermark_policy%'
+  loop
+    execute format('alter table public.pdfs drop constraint if exists %I', c.conname);
+  end loop;
+end $$;
+
+alter table public.pdfs
+  add constraint pdfs_watermark_policy_check check (watermark_policy in ('none','after_first','all'));
+
 
 create table if not exists public.user_pdf_views (
   id uuid primary key default gen_random_uuid(),
@@ -130,7 +150,8 @@ create table if not exists public.site_settings (
 insert into public.site_settings (key, value)
 values ('home', jsonb_build_object(
   'hero_title', 'Make scrolling feel like reading again.',
-  'hero_subtitle', 'Paste a YouTube link and open the visual PDF version instantly.'
+  'hero_subtitle', 'Paste a YouTube link and open the visual PDF version instantly.',
+  'default_watermark_image_url', null
 ))
 on conflict (key) do nothing;
 
