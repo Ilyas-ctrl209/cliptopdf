@@ -83,6 +83,8 @@ create table if not exists public.pdfs (
   pdf_url text,
   page_image_urls jsonb not null default '[]'::jsonb,
   thumbnail_url text,
+  cover_image_url text,
+  cover_position text not null default 'center center',
   copyright_image_url text,
   watermark_policy text not null default 'after_first',
   required_plan text not null default 'free',
@@ -96,6 +98,8 @@ alter table public.pdfs add column if not exists clip_video_id text;
 alter table public.pdfs add column if not exists clip_youtube_url text;
 create unique index if not exists pdfs_clip_video_id_unique on public.pdfs (clip_video_id) where clip_video_id is not null;
 alter table public.pdfs add column if not exists page_image_urls jsonb not null default '[]'::jsonb;
+alter table public.pdfs add column if not exists cover_image_url text;
+alter table public.pdfs add column if not exists cover_position text not null default 'center center';
 alter table public.pdfs add column if not exists copyright_image_url text;
 alter table public.pdfs add column if not exists watermark_policy text not null default 'after_first';
 alter table public.pdfs add column if not exists required_plan text not null default 'free';

@@ -23,6 +23,15 @@ async function uploadPublicFile(bucket: string, path: string, file: File) {
   return data.publicUrl;
 }
 
+function normalizeCoverPosition(value: string) {
+  const allowed = new Set([
+    "left top", "center top", "right top",
+    "left center", "center center", "right center",
+    "left bottom", "center bottom", "right bottom"
+  ]);
+  return allowed.has(value) ? value : "center center";
+}
+
 export async function POST(request: Request) {
   const formData = await request.formData();
 
@@ -44,6 +53,8 @@ export async function POST(request: Request) {
   const watermarkPolicy = rawWatermarkPolicy === "none" ? "none" : rawWatermarkPolicy === "all" ? "all" : "after_first";
   const pdfFile = formData.get("pdfFile");
   const copyrightImage = formData.get("copyrightImage");
+  const coverImage = formData.get("coverImage");
+  const coverPosition = normalizeCoverPosition(String(formData.get("coverPosition") ?? "center center"));
   const pageImages = formData
     .getAll("pageImages")
     .filter((item): item is File => item instanceof File && item.size > 0);
@@ -71,6 +82,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Copyright/watermark file must be an image." }, { status: 400 });
   }
 
+  if (coverImage instanceof File && coverImage.size > 0 && coverImage.type && !coverImage.type.startsWith("image/")) {
+    return NextResponse.json({ error: "Card cover image must be an image." }, { status: 400 });
+  }
+
   const bucket = process.env.SUPABASE_STORAGE_BUCKET || "pdfs";
   const stamp = Date.now();
 
@@ -84,6 +99,12 @@ export async function POST(request: Request) {
 
     let pdfUrl: string | null = null;
     let copyrightImageUrl: string | null = null;
+    let coverImageUrl: string | null = null;
+
+    if (coverImage instanceof File && coverImage.size > 0) {
+      const coverPath = `${videoId}/cover/${stamp}-${safeFileName(coverImage.name)}`;
+      coverImageUrl = await uploadPublicFile(bucket, coverPath, coverImage);
+    }
 
     if (copyrightImage instanceof File && copyrightImage.size > 0) {
       const copyrightPath = `${videoId}/copyright/${stamp}-${safeFileName(copyrightImage.name)}`;
@@ -110,6 +131,8 @@ export async function POST(request: Request) {
           pdf_url: pdfUrl,
           page_image_urls: pageImageUrls,
           thumbnail_url: pageImageUrls[0] ?? youtubeThumbnail(videoId),
+          cover_image_url: coverImageUrl,
+          cover_position: coverPosition,
           copyright_image_url: copyrightImageUrl,
           watermark_policy: watermarkPolicy,
           is_pro: requiredPlan !== "free",

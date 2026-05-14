@@ -19,6 +19,15 @@ async function uploadPublicFile(bucket: string, path: string, file: File) {
   return data.publicUrl;
 }
 
+function normalizeCoverPosition(value: string) {
+  const allowed = new Set([
+    "left top", "center top", "right top",
+    "left center", "center center", "right center",
+    "left bottom", "center bottom", "right bottom"
+  ]);
+  return allowed.has(value) ? value : "center center";
+}
+
 export async function POST(request: Request) {
   const formData = await request.formData();
   const password = String(formData.get("password") ?? "");
@@ -42,12 +51,14 @@ export async function POST(request: Request) {
   const clipVideoId = clipYoutubeUrl ? extractYouTubeVideoId(clipYoutubeUrl) : null;
   if (youtubeUrl && !videoId) return NextResponse.json({ error: "Invalid original YouTube URL." }, { status: 400 });
   if (clipYoutubeUrl && !clipVideoId) return NextResponse.json({ error: "Invalid ClipToPDF/short YouTube URL." }, { status: 400 });
+  const coverPosition = normalizeCoverPosition(String(formData.get("coverPosition") ?? existing.cover_position ?? "center center"));
   const bucket = process.env.SUPABASE_STORAGE_BUCKET || "pdfs";
   const stamp = Date.now();
 
   const pageImages = formData.getAll("pageImages").filter((item): item is File => item instanceof File && item.size > 0);
   const pdfFile = formData.get("pdfFile");
   const copyrightImage = formData.get("copyrightImage");
+  const coverImage = formData.get("coverImage");
 
   const updateData: Record<string, unknown> = {
     title: String(formData.get("title") ?? existing.title).trim() || existing.title,
@@ -60,7 +71,8 @@ export async function POST(request: Request) {
     youtube_url: youtubeUrl || existing.youtube_url,
     video_id: videoId || existing.video_id,
     clip_youtube_url: clipYoutubeUrl || null,
-    clip_video_id: clipVideoId || null
+    clip_video_id: clipVideoId || null,
+    cover_position: coverPosition
   };
 
   try {
@@ -74,6 +86,11 @@ export async function POST(request: Request) {
       }
       updateData.page_image_urls = pageImageUrls;
       updateData.thumbnail_url = pageImageUrls[0] ?? youtubeThumbnail(existing.video_id);
+    }
+
+    if (coverImage instanceof File && coverImage.size > 0) {
+      if (coverImage.type && !coverImage.type.startsWith("image/")) return NextResponse.json({ error: "Card cover image must be an image." }, { status: 400 });
+      updateData.cover_image_url = await uploadPublicFile(bucket, `${existing.video_id}/admin-cover/${stamp}-${safeFileName(coverImage.name)}`, coverImage);
     }
 
     if (pdfFile instanceof File && pdfFile.size > 0) {

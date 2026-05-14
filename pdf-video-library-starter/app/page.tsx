@@ -23,6 +23,14 @@ function planLabel(pdf: PdfItem) {
   return plan === "premium" ? "Premium" : plan === "pro" ? "Pro" : "Free";
 }
 
+function coverSrc(pdf: PdfItem) {
+  return pdf.cover_image_url || pdf.thumbnail_url || "/placeholder.svg";
+}
+
+function coverStyle(pdf: PdfItem) {
+  return { objectPosition: pdf.cover_position || "center center" };
+}
+
 export default function HomePage() {
   const [url, setUrl] = useState("");
   const [email, setEmail] = useState("");
@@ -109,7 +117,7 @@ export default function HomePage() {
 
             {search.status === "found" && (
               <div className="result-card float-in">
-                <img src={search.pdf.thumbnail_url ?? "/placeholder.svg"} alt="PDF thumbnail" />
+                <img src={coverSrc(search.pdf)} style={coverStyle(search.pdf)} alt="PDF thumbnail" />
                 <div>
                   <span className={pdfPlan(search.pdf) === "premium" ? "tag premium" : pdfPlan(search.pdf) === "pro" ? "tag pro" : "tag"}>
                     {planLabel(search.pdf)}
@@ -177,7 +185,7 @@ export default function HomePage() {
             <span className="badge">Library</span>
             <h2>Recently added visual PDFs</h2>
           </div>
-          <p>Visual recipe pages appear here as soon as creators upload them. The first image becomes the cover.</p>
+          <p>Visual recipe pages appear here as soon as creators upload them. Admin can choose the exact card cover crop or upload a special cover image.</p>
         </div>
 
         <div className="grid">
@@ -191,7 +199,7 @@ export default function HomePage() {
           {featured.map((pdf, index) => (
             <article className="pdf-card float-in" style={{ animationDelay: `${index * 70}ms` }} key={pdf.id}>
               <a href={`/pdf/${pdf.id}`} className="cover-link">
-                <img src={pdf.thumbnail_url ?? "/placeholder.svg"} alt={pdf.title} />
+                <img src={coverSrc(pdf)} style={coverStyle(pdf)} alt={pdf.title} />
                 <span className="cover-hover">Open pages</span>
               </a>
               <div className="pdf-body">

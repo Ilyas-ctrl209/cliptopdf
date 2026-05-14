@@ -26,6 +26,15 @@ function normalizeWatermark(value: string) {
   return value === "none" ? "none" : value === "all" ? "all" : "after_first";
 }
 
+function normalizeCoverPosition(value: string) {
+  const allowed = new Set([
+    "left top", "center top", "right top",
+    "left center", "center center", "right center",
+    "left bottom", "center bottom", "right bottom"
+  ]);
+  return allowed.has(value) ? value : "center center";
+}
+
 async function getUser(request: Request) {
   const authHeader = request.headers.get("authorization") ?? "";
   const token = authHeader.replace(/^Bearer\s+/i, "").trim();
@@ -73,6 +82,8 @@ export async function POST(request: Request) {
       const pageImageUrls = Array.isArray(body.pageImageUrls) ? body.pageImageUrls.filter((url: unknown): url is string => typeof url === "string" && url.length > 0) : undefined;
       const pdfUrl = typeof body.pdfUrl === "string" && body.pdfUrl.length > 0 ? body.pdfUrl : undefined;
       const copyrightImageUrl = typeof body.copyrightImageUrl === "string" && body.copyrightImageUrl.length > 0 ? body.copyrightImageUrl : undefined;
+      const coverImageUrl = typeof body.coverImageUrl === "string" && body.coverImageUrl.length > 0 ? body.coverImageUrl : undefined;
+      const coverPosition = normalizeCoverPosition(String(body.coverPosition ?? existing.cover_position ?? "center center"));
 
       const updateData: Record<string, unknown> = {
         title: String(body.title ?? existing.title).trim() || existing.title,
@@ -84,7 +95,8 @@ export async function POST(request: Request) {
         youtube_url: youtubeUrl || existing.youtube_url,
         video_id: videoId || existing.video_id,
         clip_youtube_url: clipYoutubeUrl || null,
-        clip_video_id: clipVideoId || null
+        clip_video_id: clipVideoId || null,
+        cover_position: coverPosition
       };
 
       updateData.is_pro = updateData.required_plan !== "free";
@@ -94,6 +106,7 @@ export async function POST(request: Request) {
         updateData.thumbnail_url = pageImageUrls[0] ?? youtubeThumbnail(existing.video_id);
       }
       if (pdfUrl) updateData.pdf_url = pdfUrl;
+      if (coverImageUrl) updateData.cover_image_url = coverImageUrl;
       if (copyrightImageUrl) updateData.copyright_image_url = copyrightImageUrl;
 
       const { data, error } = await supabaseAdmin.from("pdfs").update(updateData).eq("id", id).select("*").single();
@@ -127,6 +140,8 @@ export async function POST(request: Request) {
   const pageImages = formData.getAll("pageImages").filter((item): item is File => item instanceof File && item.size > 0);
   const pdfFile = formData.get("pdfFile");
   const copyrightImage = formData.get("copyrightImage");
+  const coverImage = formData.get("coverImage");
+  const coverPosition = normalizeCoverPosition(String(formData.get("coverPosition") ?? existing.cover_position ?? "center center"));
 
   const updateData: Record<string, unknown> = {
     title: String(formData.get("title") ?? existing.title).trim() || existing.title,
@@ -139,7 +154,8 @@ export async function POST(request: Request) {
     youtube_url: youtubeUrl || existing.youtube_url,
     video_id: videoId || existing.video_id,
     clip_youtube_url: clipYoutubeUrl || null,
-    clip_video_id: clipVideoId || null
+    clip_video_id: clipVideoId || null,
+    cover_position: coverPosition
   };
 
   try {
@@ -153,6 +169,11 @@ export async function POST(request: Request) {
       }
       updateData.page_image_urls = pageImageUrls;
       updateData.thumbnail_url = pageImageUrls[0] ?? youtubeThumbnail(existing.video_id);
+    }
+
+    if (coverImage instanceof File && coverImage.size > 0) {
+      if (coverImage.type && !coverImage.type.startsWith("image/")) return NextResponse.json({ error: "Card cover image must be an image." }, { status: 400 });
+      updateData.cover_image_url = await uploadPublicFile(bucket, `${existing.video_id}/creator-edit-cover/${stamp}-${safeFileName(coverImage.name)}`, coverImage);
     }
 
     if (pdfFile instanceof File && pdfFile.size > 0) {

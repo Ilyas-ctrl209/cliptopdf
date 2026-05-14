@@ -16,6 +16,8 @@ export type PdfItem = {
   pdf_url: string | null;
   page_image_urls: string[] | null;
   thumbnail_url: string | null;
+  cover_image_url?: string | null;
+  cover_position?: string | null;
   copyright_image_url?: string | null;
   watermark_policy?: WatermarkPolicy | null;
   is_pro: boolean;

@@ -32,6 +32,15 @@ function normalizeWatermark(rawWatermarkPolicy: string) {
   return rawWatermarkPolicy === "none" ? "none" : rawWatermarkPolicy === "all" ? "all" : "after_first";
 }
 
+function normalizeCoverPosition(value: string) {
+  const allowed = new Set([
+    "left top", "center top", "right top",
+    "left center", "center center", "right center",
+    "left bottom", "center bottom", "right bottom"
+  ]);
+  return allowed.has(value) ? value : "center center";
+}
+
 async function getUserFromRequest(request: Request) {
   const authHeader = request.headers.get("authorization") ?? "";
   const token = authHeader.replace(/^Bearer\s+/i, "").trim();
@@ -64,6 +73,8 @@ export async function POST(request: Request) {
       const pageImageUrls = Array.isArray(body.pageImageUrls) ? body.pageImageUrls.filter((url: unknown): url is string => typeof url === "string" && url.length > 0) : [];
       const pdfUrl = typeof body.pdfUrl === "string" && body.pdfUrl.length > 0 ? body.pdfUrl : null;
       const copyrightImageUrl = typeof body.copyrightImageUrl === "string" && body.copyrightImageUrl.length > 0 ? body.copyrightImageUrl : null;
+      const coverImageUrl = typeof body.coverImageUrl === "string" && body.coverImageUrl.length > 0 ? body.coverImageUrl : null;
+      const coverPosition = normalizeCoverPosition(String(body.coverPosition ?? "center center"));
 
       if (!title) return NextResponse.json({ error: "Title is required." }, { status: 400 });
       if (!youtubeUrl) return NextResponse.json({ error: "Original YouTube URL is required." }, { status: 400 });
@@ -130,6 +141,8 @@ export async function POST(request: Request) {
   const watermarkPolicy = normalizeWatermark(String(formData.get("watermarkPolicy") ?? "after_first").trim());
   const pdfFile = formData.get("pdfFile");
   const copyrightImage = formData.get("copyrightImage");
+  const coverImage = formData.get("coverImage");
+  const coverPosition = normalizeCoverPosition(String(formData.get("coverPosition") ?? "center center"));
   const pageImages = formData
     .getAll("pageImages")
     .filter((item): item is File => item instanceof File && item.size > 0);
@@ -157,6 +170,12 @@ export async function POST(request: Request) {
 
     let pdfUrl: string | null = null;
     let copyrightImageUrl: string | null = null;
+    let coverImageUrl: string | null = null;
+
+    if (coverImage instanceof File && coverImage.size > 0) {
+      if (coverImage.type && !coverImage.type.startsWith("image/")) return NextResponse.json({ error: "Card cover image must be an image." }, { status: 400 });
+      coverImageUrl = await uploadPublicFile(bucket, `${videoId}/cover/${stamp}-${safeFileName(coverImage.name)}`, coverImage);
+    }
 
     if (copyrightImage instanceof File && copyrightImage.size > 0) {
       if (copyrightImage.type && !copyrightImage.type.startsWith("image/")) return NextResponse.json({ error: "Copyright/watermark file must be an image." }, { status: 400 });
@@ -194,6 +213,8 @@ export async function POST(request: Request) {
           pdf_url: pdfUrl,
           page_image_urls: pageImageUrls,
           thumbnail_url: pageImageUrls[0] ?? youtubeThumbnail(videoId),
+          cover_image_url: coverImageUrl,
+          cover_position: coverPosition,
           copyright_image_url: copyrightImageUrl,
           watermark_policy: watermarkPolicy,
           is_pro: requiredPlan !== "free",

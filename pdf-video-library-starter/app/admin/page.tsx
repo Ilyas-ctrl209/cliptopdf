@@ -38,6 +38,26 @@ function watermarkLabel(pdf: PdfItem) {
   return "Page 1 clear, rest watermarked";
 }
 
+function coverSrc(pdf: PdfItem) {
+  return pdf.cover_image_url || pdf.thumbnail_url || "";
+}
+
+function coverStyle(pdf: PdfItem) {
+  return { objectPosition: pdf.cover_position || "center center" };
+}
+
+const coverPositions = [
+  ["center center", "Center"],
+  ["center top", "Top center"],
+  ["center bottom", "Bottom center"],
+  ["left center", "Left center"],
+  ["right center", "Right center"],
+  ["left top", "Top left"],
+  ["right top", "Top right"],
+  ["left bottom", "Bottom left"],
+  ["right bottom", "Bottom right"]
+] as const;
+
 export default function AdminPage() {
   const [password, setPassword] = useState("");
   const [unlocked, setUnlocked] = useState(false);
@@ -186,7 +206,7 @@ export default function AdminPage() {
     }
     setMessage(`Updated: ${data.pdf.title}`);
     setSelected(data.pdf);
-    await loadDashboard();
+    setPdfs((items) => items.map((item) => item.id === data.pdf.id ? data.pdf : item));
   }
 
   async function deleteSelected() {
@@ -283,7 +303,7 @@ export default function AdminPage() {
             <div className="admin-page-list">
               {pdfs.map((pdf) => (
                 <button className={selected?.id === pdf.id ? "admin-page-row selected" : "admin-page-row"} key={pdf.id} onClick={() => setSelected(pdf)}>
-                  <img src={pdf.thumbnail_url ?? ""} alt="" />
+                  <img src={coverSrc(pdf)} style={coverStyle(pdf)} alt="" />
                   <span><strong>{pdf.title}</strong><small>{accessLabel(pdf)} • {pdf.category} • {pageCount(pdf)} images • {pdf.total_views ?? 0} views • {watermarkLabel(pdf)}</small></span>
                 </button>
               ))}
@@ -296,12 +316,20 @@ export default function AdminPage() {
                 <span className={accessLabel(selected) === "Premium" ? "tag premium" : accessLabel(selected) === "Pro" ? "tag pro" : "tag"}>{accessLabel(selected)}</span>
                 <h2>Edit page</h2>
                 <p className="helper">Total views tracked: {selected.total_views ?? 0}</p>
+                {coverSrc(selected) && <img className="admin-cover-preview" src={coverSrc(selected)} style={coverStyle(selected)} alt="Current card cover" />}
                 <div className="form-grid single-form-grid">
                   <label>Title<input name="title" defaultValue={selected.title} /></label>
                   <label>Category<select name="category" defaultValue={selected.category}>{categoryOptions(selected.category).map((category) => <option key={category.slug} value={category.slug}>{category.label}</option>)}</select></label>
                   <label>Creator name<input name="creatorName" defaultValue={selected.creator_name ?? ""} /></label>
                   <label className="full">Original creator YouTube link<input name="youtubeUrl" defaultValue={selected.youtube_url ?? ""} /></label>
                   <label className="full">Your ClipToPDF/short YouTube link <span className="helper">(optional)</span><input name="clipYoutubeUrl" defaultValue={selected.clip_youtube_url ?? ""} /></label>
+                  <label>Card cover crop
+                    <select name="coverPosition" defaultValue={selected.cover_position ?? "center center"}>
+                      {coverPositions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                    </select>
+                    <span className="helper">Choose which part of the image shows on the homepage card.</span>
+                  </label>
+                  <label>Upload special card cover image<input type="file" name="coverImage" accept="image/png,image/jpeg,image/webp" /><span className="helper">Optional. Use this when page 1 does not have a good crop.</span></label>
                   <label>Access level
                     <select name="requiredPlan" defaultValue={selected.required_plan ?? (selected.is_pro ? "pro" : "free") }>
                       <option value="free">Free</option>
@@ -343,6 +371,13 @@ export default function AdminPage() {
             <label>Title<input name="title" placeholder="Eggs with Tomato and Cheese" required /></label>
             <label>Category<select name="category" defaultValue="recipe">{categoryOptions().map((category) => <option key={category.slug} value={category.slug}>{category.label}</option>)}</select></label>
             <label>Creator name<input name="creatorName" placeholder="Example: @BayashiTV" /></label>
+            <label>Card cover crop
+              <select name="coverPosition" defaultValue="center center">
+                {coverPositions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+              </select>
+              <span className="helper">Controls which area appears in library cards.</span>
+            </label>
+            <label>Special card cover image<input type="file" name="coverImage" accept="image/png,image/jpeg,image/webp" /><span className="helper">Optional image used only for cards/search results.</span></label>
             <label>Access level<select name="requiredPlan" defaultValue="free"><option value="free">Free</option><option value="pro">Pro</option><option value="premium">Premium</option></select></label>
             <label>Free-user watermark rule<select name="watermarkPolicy" defaultValue="after_first"><option value="after_first">Page 1 clear, rest watermarked</option><option value="all">Watermark all pages</option><option value="none">No watermark on this page set</option></select></label>
             <label>Optional PDF file<input type="file" name="pdfFile" accept="application/pdf" /></label>

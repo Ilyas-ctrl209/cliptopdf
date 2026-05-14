@@ -788,3 +788,15 @@ label { display: grid; gap: 7px; font-weight: 900; color: #342f24; }
     radial-gradient(circle at center, rgba(255,255,255,0.2), transparent 58%),
     repeating-linear-gradient(-28deg, rgba(255,255,255,0.06) 0 30px, rgba(29,27,22,0.1) 30px 62px);
 }
+
+.admin-cover-preview {
+  width: 100%;
+  max-height: 220px;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  border-radius: 18px;
+  border: 1px solid var(--border);
+  background: #f3ead8;
+  margin: 12px 0 18px;
+  box-shadow: var(--shadow-soft);
+}

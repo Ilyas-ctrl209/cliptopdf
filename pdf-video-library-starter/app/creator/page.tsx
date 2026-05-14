@@ -24,6 +24,26 @@ function watermarkLabel(pdf: PdfItem) {
   return "Page 1 clear, rest watermarked";
 }
 
+function coverSrc(pdf: PdfItem) {
+  return pdf.cover_image_url || pdf.thumbnail_url || "";
+}
+
+function coverStyle(pdf: PdfItem) {
+  return { objectPosition: pdf.cover_position || "center center" };
+}
+
+const coverPositions = [
+  ["center center", "Center"],
+  ["center top", "Top center"],
+  ["center bottom", "Bottom center"],
+  ["left center", "Left center"],
+  ["right center", "Right center"],
+  ["left top", "Top left"],
+  ["right top", "Top right"],
+  ["left bottom", "Bottom left"],
+  ["right bottom", "Bottom right"]
+] as const;
+
 function safeFileName(name: string) {
   return name
     .toLowerCase()
@@ -180,6 +200,7 @@ export default function CreatorPage() {
       const pageImages = fileListFromForm(formData, "pageImages");
       const pdfFile = optionalFileFromForm(formData, "pdfFile");
       const copyrightImage = optionalFileFromForm(formData, "copyrightImage");
+      const coverImage = optionalFileFromForm(formData, "coverImage");
 
       if (!title) throw new Error("Title is required.");
       if (!youtubeUrl) throw new Error("Original YouTube URL is required.");
@@ -192,6 +213,7 @@ export default function CreatorPage() {
       }
       if (pdfFile && pdfFile.type && pdfFile.type !== "application/pdf") throw new Error("Optional PDF file must be a PDF.");
       if (copyrightImage && copyrightImage.type && !copyrightImage.type.startsWith("image/")) throw new Error("Copyright/watermark file must be an image.");
+      if (coverImage && coverImage.type && !coverImage.type.startsWith("image/")) throw new Error("Card cover image must be an image.");
 
       const stamp = Date.now();
       const owner = user.id || "creator";
@@ -200,6 +222,12 @@ export default function CreatorPage() {
 
       let pdfUrl: string | null = null;
       let copyrightImageUrl: string | null = null;
+      let coverImageUrl: string | null = null;
+
+      if (coverImage) {
+        setMessage("Uploading special card cover directly to storage...");
+        coverImageUrl = await uploadDirectFile(coverImage, `${basePath}/cover/${safeFileName(coverImage.name)}`);
+      }
 
       if (copyrightImage) {
         setMessage("Uploading watermark image directly to storage...");
@@ -227,6 +255,8 @@ export default function CreatorPage() {
           description: String(formData.get("description") ?? ""),
           requiredPlan: String(formData.get("requiredPlan") ?? "free"),
           watermarkPolicy: String(formData.get("watermarkPolicy") ?? "after_first"),
+          coverPosition: String(formData.get("coverPosition") ?? "center center"),
+          coverImageUrl,
           pageImageUrls,
           pdfUrl,
           copyrightImageUrl
@@ -261,6 +291,7 @@ export default function CreatorPage() {
       const pageImages = fileListFromForm(formData, "pageImages");
       const pdfFile = optionalFileFromForm(formData, "pdfFile");
       const copyrightImage = optionalFileFromForm(formData, "copyrightImage");
+      const coverImage = optionalFileFromForm(formData, "coverImage");
 
       if (youtubeUrl && !videoId) throw new Error("Invalid original YouTube URL.");
       if (clipYoutubeUrl && !clipVideoId) throw new Error("Invalid ClipToPDF/short YouTube URL.");
@@ -272,12 +303,19 @@ export default function CreatorPage() {
       let pageImageUrls: string[] | undefined;
       let pdfUrl: string | undefined;
       let copyrightImageUrl: string | undefined;
+      let coverImageUrl: string | undefined;
 
       if (pageImages.length > 0) {
         for (const image of pageImages) {
           if (image.type && !image.type.startsWith("image/")) throw new Error("Page images must be PNG, JPG, or WebP files.");
         }
         pageImageUrls = await uploadManyDirect(pageImages, `${basePath}/pages`, setMessage);
+      }
+
+      if (coverImage) {
+        if (coverImage.type && !coverImage.type.startsWith("image/")) throw new Error("Card cover image must be an image.");
+        setMessage("Uploading replacement card cover directly to storage...");
+        coverImageUrl = await uploadDirectFile(coverImage, `${basePath}/cover/${safeFileName(coverImage.name)}`);
       }
 
       if (copyrightImage) {
@@ -309,6 +347,8 @@ export default function CreatorPage() {
           description: String(formData.get("description") ?? ""),
           requiredPlan: String(formData.get("requiredPlan") ?? selected.required_plan ?? "free"),
           watermarkPolicy: String(formData.get("watermarkPolicy") ?? selected.watermark_policy ?? "after_first"),
+          coverPosition: String(formData.get("coverPosition") ?? selected.cover_position ?? "center center"),
+          coverImageUrl,
           pageImageUrls,
           pdfUrl,
           copyrightImageUrl
@@ -394,6 +434,13 @@ export default function CreatorPage() {
             <label>Title<input name="title" placeholder="Eggs with Tomato and Cheese" required /></label>
             <label>Category<select name="category" defaultValue="recipe">{categoryOptions().map((category) => <option key={category.slug} value={category.slug}>{category.label}</option>)}</select></label>
             <label>Creator name / handle<input name="creatorName" placeholder="Example: @simpledeliciousrecipes" defaultValue={user.name ?? ""} /></label>
+            <label>Card cover crop
+              <select name="coverPosition" defaultValue="center center">
+                {coverPositions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+              </select>
+              <span className="helper">Choose which part of page 1 appears in library cards.</span>
+            </label>
+            <label>Special card cover image<input type="file" name="coverImage" accept="image/png,image/jpeg,image/webp" /><span className="helper">Optional. Used only for cards/search results.</span></label>
             <label>Optional PDF file for download<input type="file" name="pdfFile" accept="application/pdf" /><span className="helper">Images are the main attraction. PDF is only for the download button.</span></label>
             <label>Custom free-user watermark image<input type="file" name="copyrightImage" accept="image/png,image/jpeg,image/webp" /><span className="helper">Optional. If empty, the admin default watermark is used.</span></label>
             <label className="full">Page images — upload page 1, page 2, page 3...<input type="file" name="pageImages" accept="image/png,image/jpeg,image/webp" multiple required /><span className="helper">Use compressed JPG/WebP when possible. Big PNGs may still take time.</span></label>
@@ -419,7 +466,7 @@ export default function CreatorPage() {
           <div className="creator-upload-list">
             {myPdfs.length === 0 ? <p className="helper">No uploads yet.</p> : myPdfs.map((pdf) => (
               <button key={pdf.id} type="button" className={selected?.id === pdf.id ? "admin-page-row selected" : "admin-page-row"} onClick={() => setSelected(pdf)}>
-                <img src={pdf.thumbnail_url ?? ""} alt="" />
+                <img src={coverSrc(pdf)} style={coverStyle(pdf)} alt="" />
                 <span><strong>{pdf.title}</strong><small>{accessLabel(pdf)} • {watermarkLabel(pdf)}</small></span>
               </button>
             ))}
@@ -434,6 +481,13 @@ export default function CreatorPage() {
                 <label>Creator name<input name="creatorName" defaultValue={selected.creator_name ?? ""} /></label>
                 <label className="full">Original creator YouTube link<input name="youtubeUrl" defaultValue={selected.youtube_url ?? ""} /></label>
                 <label className="full">Your ClipToPDF/short YouTube link <span className="helper">(optional)</span><input name="clipYoutubeUrl" defaultValue={selected.clip_youtube_url ?? ""} /></label>
+                <label>Card cover crop
+                  <select name="coverPosition" defaultValue={selected.cover_position ?? "center center"}>
+                    {coverPositions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                  </select>
+                  <span className="helper">Controls homepage/library crop.</span>
+                </label>
+                <label>Replace special card cover<input type="file" name="coverImage" accept="image/png,image/jpeg,image/webp" /></label>
                 <label>Access level<select name="requiredPlan" defaultValue={selected.required_plan ?? (selected.is_pro ? "pro" : "free")}><option value="free">Free</option><option value="pro">Pro</option><option value="premium">Premium</option></select></label>
                 <label>Free-user watermark rule<select name="watermarkPolicy" defaultValue={selected.watermark_policy ?? "after_first"}><option value="after_first">Page 1 clear, rest watermarked</option><option value="all">Watermark all pages</option><option value="none">No watermark on this page set</option></select></label>
                 <label>Replace optional PDF<input type="file" name="pdfFile" accept="application/pdf" /></label>
