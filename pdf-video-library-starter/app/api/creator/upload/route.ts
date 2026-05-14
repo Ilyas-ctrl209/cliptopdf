@@ -24,34 +24,110 @@ async function uploadPublicFile(bucket: string, path: string, file: File) {
   return data.publicUrl;
 }
 
-export async function POST(request: Request) {
+function normalizePlan(rawPlan: string, legacyIsPro = false) {
+  return rawPlan === "premium" ? "premium" : rawPlan === "pro" || legacyIsPro ? "pro" : "free";
+}
+
+function normalizeWatermark(rawWatermarkPolicy: string) {
+  return rawWatermarkPolicy === "none" ? "none" : rawWatermarkPolicy === "all" ? "all" : "after_first";
+}
+
+async function getUserFromRequest(request: Request) {
   const authHeader = request.headers.get("authorization") ?? "";
   const token = authHeader.replace(/^Bearer\s+/i, "").trim();
 
-  if (!token) {
-    return NextResponse.json({ error: "Login required." }, { status: 401 });
-  }
-
+  if (!token) return { user: null, error: "Login required." };
   const { data: userData, error: userError } = await supabaseAdmin.auth.getUser(token);
-  if (userError || !userData.user) {
-    return NextResponse.json({ error: "Invalid login session." }, { status: 401 });
+  if (userError || !userData.user) return { user: null, error: "Invalid login session." };
+  await ensureUserProfile(userData.user);
+  return { user: userData.user, error: null };
+}
+
+export async function POST(request: Request) {
+  const { user, error: authError } = await getUserFromRequest(request);
+  if (!user) return NextResponse.json({ error: authError }, { status: 401 });
+
+  const contentType = request.headers.get("content-type") ?? "";
+
+  if (contentType.includes("application/json")) {
+    try {
+      const body = await request.json();
+      const title = String(body.title ?? "").trim();
+      const youtubeUrl = String(body.youtubeUrl ?? "").trim();
+      const clipYoutubeUrl = String(body.clipYoutubeUrl ?? "").trim();
+      const category = String(body.category ?? "recipe").trim() || "recipe";
+      const userName = String(user.user_metadata?.full_name ?? user.user_metadata?.name ?? "").trim();
+      const creatorName = String(body.creatorName ?? "").trim() || userName || user.email || "Creator";
+      const description = String(body.description ?? "").trim() || null;
+      const requiredPlan = normalizePlan(String(body.requiredPlan ?? "free").trim());
+      const watermarkPolicy = normalizeWatermark(String(body.watermarkPolicy ?? "after_first").trim());
+      const pageImageUrls = Array.isArray(body.pageImageUrls) ? body.pageImageUrls.filter((url: unknown): url is string => typeof url === "string" && url.length > 0) : [];
+      const pdfUrl = typeof body.pdfUrl === "string" && body.pdfUrl.length > 0 ? body.pdfUrl : null;
+      const copyrightImageUrl = typeof body.copyrightImageUrl === "string" && body.copyrightImageUrl.length > 0 ? body.copyrightImageUrl : null;
+
+      if (!title) return NextResponse.json({ error: "Title is required." }, { status: 400 });
+      if (!youtubeUrl) return NextResponse.json({ error: "Original YouTube URL is required." }, { status: 400 });
+      if (pageImageUrls.length === 0) return NextResponse.json({ error: "Upload at least one page image." }, { status: 400 });
+
+      const videoId = extractYouTubeVideoId(youtubeUrl);
+      const clipVideoId = clipYoutubeUrl ? extractYouTubeVideoId(clipYoutubeUrl) : null;
+      if (!videoId) return NextResponse.json({ error: "Invalid original YouTube URL." }, { status: 400 });
+      if (clipYoutubeUrl && !clipVideoId) return NextResponse.json({ error: "Invalid ClipToPDF/short YouTube URL." }, { status: 400 });
+
+      await supabaseAdmin.from("creator_profiles").upsert(
+        {
+          user_id: user.id,
+          display_name: creatorName,
+          email: user.email,
+          avatar_url: String(user.user_metadata?.avatar_url ?? "") || null
+        },
+        { onConflict: "user_id" }
+      );
+
+      const { data, error: insertError } = await supabaseAdmin
+        .from("pdfs")
+        .upsert(
+          {
+            video_id: videoId,
+            youtube_url: youtubeUrl,
+            clip_video_id: clipVideoId,
+            clip_youtube_url: clipYoutubeUrl || null,
+            title,
+            category,
+            creator_name: creatorName,
+            creator_user_id: user.id,
+            description,
+            pdf_url: pdfUrl,
+            page_image_urls: pageImageUrls,
+            thumbnail_url: pageImageUrls[0] ?? youtubeThumbnail(videoId),
+            copyright_image_url: copyrightImageUrl,
+            watermark_policy: watermarkPolicy,
+            is_pro: requiredPlan !== "free",
+            required_plan: requiredPlan
+          },
+          { onConflict: "video_id" }
+        )
+        .select("*")
+        .single();
+
+      if (insertError) return NextResponse.json({ error: insertError.message }, { status: 500 });
+      return NextResponse.json({ ok: true, pdf: data });
+    } catch (error) {
+      return NextResponse.json({ error: error instanceof Error ? error.message : "Upload failed." }, { status: 500 });
+    }
   }
 
-  await ensureUserProfile(userData.user);
-
+  // Backward-compatible old form upload route. New creator page uses direct browser-to-Supabase uploads.
   const formData = await request.formData();
   const title = String(formData.get("title") ?? "").trim();
   const youtubeUrl = String(formData.get("youtubeUrl") ?? "").trim();
   const clipYoutubeUrl = String(formData.get("clipYoutubeUrl") ?? "").trim();
   const category = String(formData.get("category") ?? "recipe").trim() || "recipe";
-  const userName = String(userData.user.user_metadata?.full_name ?? userData.user.user_metadata?.name ?? "").trim();
-  const creatorName = String(formData.get("creatorName") ?? "").trim() || userName || userData.user.email || "Creator";
+  const userName = String(user.user_metadata?.full_name ?? user.user_metadata?.name ?? "").trim();
+  const creatorName = String(formData.get("creatorName") ?? "").trim() || userName || user.email || "Creator";
   const description = String(formData.get("description") ?? "").trim() || null;
-  const rawPlan = String(formData.get("requiredPlan") ?? "").trim();
-  const legacyIsPro = String(formData.get("isPro") ?? "false") === "true";
-  const requiredPlan = rawPlan === "premium" ? "premium" : rawPlan === "pro" || legacyIsPro ? "pro" : "free";
-  const rawWatermarkPolicy = String(formData.get("watermarkPolicy") ?? "after_first").trim();
-  const watermarkPolicy = rawWatermarkPolicy === "none" ? "none" : rawWatermarkPolicy === "all" ? "all" : "after_first";
+  const requiredPlan = normalizePlan(String(formData.get("requiredPlan") ?? "").trim(), String(formData.get("isPro") ?? "false") === "true");
+  const watermarkPolicy = normalizeWatermark(String(formData.get("watermarkPolicy") ?? "after_first").trim());
   const pdfFile = formData.get("pdfFile");
   const copyrightImage = formData.get("copyrightImage");
   const pageImages = formData
@@ -67,20 +143,6 @@ export async function POST(request: Request) {
   if (!videoId) return NextResponse.json({ error: "Invalid original YouTube URL." }, { status: 400 });
   if (clipYoutubeUrl && !clipVideoId) return NextResponse.json({ error: "Invalid ClipToPDF/short YouTube URL." }, { status: 400 });
 
-  for (const image of pageImages) {
-    if (image.type && !image.type.startsWith("image/")) {
-      return NextResponse.json({ error: "Page images must be PNG, JPG, or WebP files." }, { status: 400 });
-    }
-  }
-
-  if (pdfFile instanceof File && pdfFile.size > 0 && pdfFile.type && pdfFile.type !== "application/pdf") {
-    return NextResponse.json({ error: "Optional PDF file must be a PDF." }, { status: 400 });
-  }
-
-  if (copyrightImage instanceof File && copyrightImage.size > 0 && copyrightImage.type && !copyrightImage.type.startsWith("image/")) {
-    return NextResponse.json({ error: "Copyright/watermark file must be an image." }, { status: 400 });
-  }
-
   const bucket = process.env.SUPABASE_STORAGE_BUCKET || "pdfs";
   const stamp = Date.now();
 
@@ -88,6 +150,7 @@ export async function POST(request: Request) {
     const pageImageUrls: string[] = [];
     for (let index = 0; index < pageImages.length; index++) {
       const image = pageImages[index];
+      if (image.type && !image.type.startsWith("image/")) return NextResponse.json({ error: "Page images must be PNG, JPG, or WebP files." }, { status: 400 });
       const imagePath = `${videoId}/pages/${stamp}-${String(index + 1).padStart(2, "0")}-${safeFileName(image.name)}`;
       pageImageUrls.push(await uploadPublicFile(bucket, imagePath, image));
     }
@@ -96,21 +159,21 @@ export async function POST(request: Request) {
     let copyrightImageUrl: string | null = null;
 
     if (copyrightImage instanceof File && copyrightImage.size > 0) {
-      const copyrightPath = `${videoId}/copyright/${stamp}-${safeFileName(copyrightImage.name)}`;
-      copyrightImageUrl = await uploadPublicFile(bucket, copyrightPath, copyrightImage);
+      if (copyrightImage.type && !copyrightImage.type.startsWith("image/")) return NextResponse.json({ error: "Copyright/watermark file must be an image." }, { status: 400 });
+      copyrightImageUrl = await uploadPublicFile(bucket, `${videoId}/copyright/${stamp}-${safeFileName(copyrightImage.name)}`, copyrightImage);
     }
 
     if (pdfFile instanceof File && pdfFile.size > 0) {
-      const pdfPath = `${videoId}/pdf/${stamp}-${safeFileName(pdfFile.name)}`;
-      pdfUrl = await uploadPublicFile(bucket, pdfPath, pdfFile);
+      if (pdfFile.type && pdfFile.type !== "application/pdf") return NextResponse.json({ error: "Optional PDF file must be a PDF." }, { status: 400 });
+      pdfUrl = await uploadPublicFile(bucket, `${videoId}/pdf/${stamp}-${safeFileName(pdfFile.name)}`, pdfFile);
     }
 
     await supabaseAdmin.from("creator_profiles").upsert(
       {
-        user_id: userData.user.id,
+        user_id: user.id,
         display_name: creatorName,
-        email: userData.user.email,
-        avatar_url: String(userData.user.user_metadata?.avatar_url ?? "") || null
+        email: user.email,
+        avatar_url: String(user.user_metadata?.avatar_url ?? "") || null
       },
       { onConflict: "user_id" }
     );
@@ -126,7 +189,7 @@ export async function POST(request: Request) {
           title,
           category,
           creator_name: creatorName,
-          creator_user_id: userData.user.id,
+          creator_user_id: user.id,
           description,
           pdf_url: pdfUrl,
           page_image_urls: pageImageUrls,
@@ -141,10 +204,7 @@ export async function POST(request: Request) {
       .select("*")
       .single();
 
-    if (insertError) {
-      return NextResponse.json({ error: insertError.message }, { status: 500 });
-    }
-
+    if (insertError) return NextResponse.json({ error: insertError.message }, { status: 500 });
     return NextResponse.json({ ok: true, pdf: data });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Upload failed." }, { status: 500 });

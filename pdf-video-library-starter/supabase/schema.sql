@@ -252,3 +252,24 @@ end $$;
 -- update public.user_profiles set plan = 'admin' where email = 'your-email@gmail.com';
 -- update public.user_profiles set plan = 'pro' where email = 'your-email@gmail.com';
 -- update public.user_profiles set plan = 'premium' where email = 'your-email@gmail.com';
+
+-- Direct creator uploads from browser to Supabase Storage.
+-- Needed after the fast upload update. Safe to run again.
+do $$ begin
+  if not exists (select 1 from pg_policies where schemaname = 'storage' and tablename = 'objects' and policyname = 'Authenticated creators can upload to PDF bucket') then
+    create policy "Authenticated creators can upload to PDF bucket" on storage.objects
+      for insert
+      to authenticated
+      with check (bucket_id = 'pdfs');
+  end if;
+end $$;
+
+do $$ begin
+  if not exists (select 1 from pg_policies where schemaname = 'storage' and tablename = 'objects' and policyname = 'Authenticated creators can update PDF bucket objects') then
+    create policy "Authenticated creators can update PDF bucket objects" on storage.objects
+      for update
+      to authenticated
+      using (bucket_id = 'pdfs')
+      with check (bucket_id = 'pdfs');
+  end if;
+end $$;
