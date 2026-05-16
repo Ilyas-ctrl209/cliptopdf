@@ -57,6 +57,13 @@ export default function AccountPage() {
       return;
     }
     setProfile(json.profile);
+    const navUser = {
+      email: json.profile.email ?? "",
+      name: json.profile.display_name || json.profile.email || "Account",
+      avatarUrl: json.profile.avatar_url || null
+    };
+    localStorage.setItem("cliptopdf_nav_user", JSON.stringify(navUser));
+    window.dispatchEvent(new CustomEvent("cliptopdf-profile-updated", { detail: navUser }));
     setMessage("Profile saved.");
   }
 
@@ -107,7 +114,7 @@ export default function AccountPage() {
             <p className="helper">{profile.email}</p>
           </div>
         </div>
-        <p className="helper big-helper">Free users can read 10 visual PDFs per day and download 1 PDF per day. Pro/Premium removes the free watermark layer and unlocks more pages.</p>
+        <p className="helper big-helper">Your account controls your saved access, billing, creator studio, and public profile across the library.</p>
         <div className="card-actions">
           <a className="btn" href="/pricing">Upgrade plan</a>
           <button className="btn ghost" type="button" onClick={manageBilling}>Manage billing</button>

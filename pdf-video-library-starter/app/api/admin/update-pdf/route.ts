@@ -29,6 +29,18 @@ function normalizeCoverPosition(value: string) {
 }
 
 
+async function findDuplicateVideoId(column: "video_id" | "clip_video_id", value: string, currentId: string) {
+  const { data, error } = await supabaseAdmin
+    .from("pdfs")
+    .select("id,title")
+    .eq(column, value)
+    .neq("id", currentId)
+    .maybeSingle();
+
+  if (error) throw new Error(error.message);
+  return data as { id: string; title: string } | null;
+}
+
 function parseUrlList(value: FormDataEntryValue | null) {
   if (typeof value !== "string" || !value.trim()) return null;
   try {
@@ -64,6 +76,24 @@ export async function POST(request: Request) {
   if (youtubeUrl && !videoId) return NextResponse.json({ error: "Invalid original YouTube URL." }, { status: 400 });
   if (clipYoutubeUrl && !clipVideoId) return NextResponse.json({ error: "Invalid ClipToPDF/short YouTube URL." }, { status: 400 });
   const coverPosition = normalizeCoverPosition(String(formData.get("coverPosition") ?? existing.cover_position ?? "center center"));
+
+  try {
+    if (videoId) {
+      const duplicateOriginal = await findDuplicateVideoId("video_id", videoId, id);
+      if (duplicateOriginal) {
+        return NextResponse.json({ error: `This original YouTube link is already used by another post: ${duplicateOriginal.title}.` }, { status: 409 });
+      }
+    }
+    if (clipVideoId) {
+      const duplicateClip = await findDuplicateVideoId("clip_video_id", clipVideoId, id);
+      if (duplicateClip) {
+        return NextResponse.json({ error: `This ClipToPDF/short YouTube link is already used by another post: ${duplicateClip.title}.` }, { status: 409 });
+      }
+    }
+  } catch (error) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Duplicate link check failed." }, { status: 500 });
+  }
+
   const bucket = process.env.SUPABASE_STORAGE_BUCKET || "pdfs";
   const stamp = Date.now();
 
@@ -129,7 +159,12 @@ export async function POST(request: Request) {
     }
 
     const { data, error } = await supabaseAdmin.from("pdfs").update(updateData).eq("id", id).select("*").single();
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    if (error) {
+      if (error.message.includes("duplicate key") || error.message.includes("violates unique constraint")) {
+        return NextResponse.json({ error: "One of these YouTube links is already connected to another post. Use a different link or edit the existing post." }, { status: 409 });
+      }
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
     return NextResponse.json({ ok: true, pdf: data });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Update failed." }, { status: 500 });

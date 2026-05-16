@@ -194,7 +194,7 @@ export default function HomePage() {
             <span className="badge">Library</span>
             <h2>Recently added visual PDFs</h2>
           </div>
-          <p>Visual recipe pages appear here as soon as creators upload them. Admin can choose the exact card cover crop or upload a special cover image.</p>
+          <p>Explore visual recipes, animal facts, hadith notes, and study pages made to be read quickly and saved for later.</p>
         </div>
 
         <div className="grid">

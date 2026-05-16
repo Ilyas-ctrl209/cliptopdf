@@ -162,6 +162,9 @@ export async function POST(request: Request) {
       .single();
 
     if (insertError) {
+      if (insertError.message.includes("duplicate key") || insertError.message.includes("violates unique constraint")) {
+        return NextResponse.json({ error: "One of these YouTube links is already connected to another post. Use the existing post or choose a different link." }, { status: 409 });
+      }
       return NextResponse.json({ error: insertError.message }, { status: 500 });
     }
 

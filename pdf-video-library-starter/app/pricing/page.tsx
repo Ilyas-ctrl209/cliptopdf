@@ -100,7 +100,7 @@ export default function PricingPage() {
         <span className="badge">Pricing</span>
         <h1>Start free. Upgrade when you want the full library.</h1>
         <p className="helper big-helper">
-          Free users can read 10 visual PDFs per day and download 1 PDF per day. Pro and Premium are connected to Stripe Checkout.
+          Choose the plan that fits how much of the visual library you want to unlock.
         </p>
         {message && <p className="message">{message}</p>}
       </section>

@@ -876,3 +876,39 @@ label { display: grid; gap: 7px; font-weight: 900; color: #342f24; }
 @media (max-width: 720px) {
   .creator-monetization-banner { flex-direction: column; align-items: flex-start; }
 }
+
+.scroll-progress {
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 4px;
+  z-index: 9999;
+  background: linear-gradient(90deg, var(--accent), var(--gold), var(--green));
+  box-shadow: 0 0 18px rgba(232, 93, 63, 0.35);
+  transition: width 0.08s linear;
+}
+
+.logo-mark {
+  width: 42px;
+  height: 42px;
+  border-radius: 15px;
+  display: inline-grid;
+  place-items: center;
+  background: var(--ink);
+  color: white;
+  box-shadow: var(--shadow);
+  flex: 0 0 auto;
+}
+.logo-mark svg { width: 31px; height: 31px; }
+.logo-mark.small { width: 30px; height: 30px; border-radius: 11px; }
+.logo-mark.small svg { width: 22px; height: 22px; }
+.logo-paper-back { fill: #f2c94c; opacity: 0.75; }
+.logo-paper-front { fill: #fffaf0; }
+.logo-lines { stroke: #184f3d; stroke-width: 4; stroke-linecap: round; }
+.logo-clip { fill: #e85d3f; }
+
+.brand-mark { display: none; }
+
+@media (max-width: 640px) {
+  .account-name { max-width: 80px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+}

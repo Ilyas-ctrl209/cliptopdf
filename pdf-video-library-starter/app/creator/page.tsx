@@ -116,6 +116,32 @@ export default function CreatorPage() {
       { id: "study", slug: "study", label: "Study notes" }
     ];
   }
+  async function loadProfileUser(token: string, fallbackUser: any) {
+    const fallback = {
+      id: fallbackUser.id,
+      email: fallbackUser.email ?? "",
+      name: String(fallbackUser.user_metadata?.full_name ?? fallbackUser.user_metadata?.name ?? "Creator"),
+      avatar: String(fallbackUser.user_metadata?.avatar_url ?? "")
+    };
+    try {
+      const response = await fetch("/api/account/profile", {
+        headers: { Authorization: `Bearer ${token}` },
+        cache: "no-store"
+      });
+      const data = await response.json();
+      if (response.ok && data.profile) {
+        return {
+          id: fallbackUser.id,
+          email: data.profile.email ?? fallback.email,
+          name: data.profile.display_name || fallback.name,
+          avatar: data.profile.avatar_url || fallback.avatar
+        };
+      }
+    } catch {
+      // Use the Google metadata fallback if profile loading is temporarily unavailable.
+    }
+    return fallback;
+  }
 
   async function loadMyPdfs(token: string) {
     const response = await fetch("/api/creator/my-pdfs", {
@@ -137,12 +163,11 @@ export default function CreatorPage() {
         const session = data.session;
         const token = session?.access_token ?? null;
         setAccessToken(token);
-        setUser(session?.user ? {
-          id: session.user.id,
-          email: session.user.email ?? "",
-          name: String(session.user.user_metadata?.full_name ?? session.user.user_metadata?.name ?? "Creator"),
-          avatar: String(session.user.user_metadata?.avatar_url ?? "")
-        } : null);
+        if (session?.user && token) {
+          loadProfileUser(token, session.user).then((profileUser) => mounted && setUser(profileUser));
+        } else {
+          setUser(null);
+        }
         setLoadingUser(false);
         if (token) loadMyPdfs(token);
       });
@@ -151,12 +176,11 @@ export default function CreatorPage() {
         if (!mounted) return;
         const token = session?.access_token ?? null;
         setAccessToken(token);
-        setUser(session?.user ? {
-          id: session.user.id,
-          email: session.user.email ?? "",
-          name: String(session.user.user_metadata?.full_name ?? session.user.user_metadata?.name ?? "Creator"),
-          avatar: String(session.user.user_metadata?.avatar_url ?? "")
-        } : null);
+        if (session?.user && token) {
+          loadProfileUser(token, session.user).then((profileUser) => mounted && setUser(profileUser));
+        } else {
+          setUser(null);
+        }
         setLoadingUser(false);
         if (token) loadMyPdfs(token);
       });
