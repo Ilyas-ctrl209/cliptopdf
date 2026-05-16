@@ -32,6 +32,18 @@ function normalizeCoverPosition(value: string) {
   return allowed.has(value) ? value : "center center";
 }
 
+
+function parseUrlList(value: FormDataEntryValue | null) {
+  if (typeof value !== "string" || !value.trim()) return null;
+  try {
+    const parsed = JSON.parse(value);
+    if (!Array.isArray(parsed)) return null;
+    return parsed.filter((item): item is string => typeof item === "string" && item.trim().length > 0);
+  } catch {
+    return null;
+  }
+}
+
 export async function POST(request: Request) {
   const formData = await request.formData();
 
@@ -58,10 +70,14 @@ export async function POST(request: Request) {
   const pageImages = formData
     .getAll("pageImages")
     .filter((item): item is File => item instanceof File && item.size > 0);
+  const directPageImageUrls = parseUrlList(formData.get("pageImageUrls"));
+  const directPdfUrl = String(formData.get("pdfUrl") ?? "").trim();
+  const directCopyrightImageUrl = String(formData.get("copyrightImageUrl") ?? "").trim();
+  const directCoverImageUrl = String(formData.get("coverImageUrl") ?? "").trim();
 
   if (!title) return NextResponse.json({ error: "Title is required." }, { status: 400 });
   if (!youtubeUrl) return NextResponse.json({ error: "Original YouTube URL is required." }, { status: 400 });
-  if (pageImages.length === 0) return NextResponse.json({ error: "Upload at least one page image." }, { status: 400 });
+  if (pageImages.length === 0 && (!directPageImageUrls || directPageImageUrls.length === 0)) return NextResponse.json({ error: "Upload at least one page image." }, { status: 400 });
 
   const videoId = extractYouTubeVideoId(youtubeUrl);
   const clipVideoId = clipYoutubeUrl ? extractYouTubeVideoId(clipYoutubeUrl) : null;
@@ -90,28 +106,30 @@ export async function POST(request: Request) {
   const stamp = Date.now();
 
   try {
-    const pageImageUrls: string[] = [];
-    for (let index = 0; index < pageImages.length; index++) {
-      const image = pageImages[index];
-      const imagePath = `${videoId}/pages/${stamp}-${String(index + 1).padStart(2, "0")}-${safeFileName(image.name)}`;
-      pageImageUrls.push(await uploadPublicFile(bucket, imagePath, image));
+    const pageImageUrls: string[] = directPageImageUrls ?? [];
+    if (pageImageUrls.length === 0) {
+      for (let index = 0; index < pageImages.length; index++) {
+        const image = pageImages[index];
+        const imagePath = `${videoId}/pages/${stamp}-${String(index + 1).padStart(2, "0")}-${safeFileName(image.name)}`;
+        pageImageUrls.push(await uploadPublicFile(bucket, imagePath, image));
+      }
     }
 
-    let pdfUrl: string | null = null;
-    let copyrightImageUrl: string | null = null;
-    let coverImageUrl: string | null = null;
+    let pdfUrl: string | null = directPdfUrl || null;
+    let copyrightImageUrl: string | null = directCopyrightImageUrl || null;
+    let coverImageUrl: string | null = directCoverImageUrl || null;
 
-    if (coverImage instanceof File && coverImage.size > 0) {
+    if (!coverImageUrl && coverImage instanceof File && coverImage.size > 0) {
       const coverPath = `${videoId}/cover/${stamp}-${safeFileName(coverImage.name)}`;
       coverImageUrl = await uploadPublicFile(bucket, coverPath, coverImage);
     }
 
-    if (copyrightImage instanceof File && copyrightImage.size > 0) {
+    if (!copyrightImageUrl && copyrightImage instanceof File && copyrightImage.size > 0) {
       const copyrightPath = `${videoId}/copyright/${stamp}-${safeFileName(copyrightImage.name)}`;
       copyrightImageUrl = await uploadPublicFile(bucket, copyrightPath, copyrightImage);
     }
 
-    if (pdfFile instanceof File && pdfFile.size > 0) {
+    if (!pdfUrl && pdfFile instanceof File && pdfFile.size > 0) {
       const pdfPath = `${videoId}/pdf/${stamp}-${safeFileName(pdfFile.name)}`;
       pdfUrl = await uploadPublicFile(bucket, pdfPath, pdfFile);
     }

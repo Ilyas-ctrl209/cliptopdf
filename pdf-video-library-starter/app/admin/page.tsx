@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
+import { createSupabaseBrowserClient } from "@/lib/supabaseBrowser";
+import { extractYouTubeVideoId } from "@/lib/youtube";
 import type { Category, PdfItem, SiteSettings } from "@/lib/types";
 
 type Stats = {
@@ -58,6 +60,51 @@ const coverPositions = [
   ["right bottom", "Bottom right"]
 ] as const;
 
+type UploadProgressItem = {
+  name: string;
+  progress: number;
+  status: "waiting" | "uploading" | "done" | "error";
+};
+
+function safeFileName(name: string) {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9.\-_]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "") || "upload";
+}
+
+function filesFromForm(formData: FormData, key: string) {
+  return formData.getAll(key).filter((item): item is File => item instanceof File && item.size > 0);
+}
+
+function optionalFileFromForm(formData: FormData, key: string) {
+  const item = formData.get(key);
+  return item instanceof File && item.size > 0 ? item : null;
+}
+
+function copyTextFields(formData: FormData, names: string[]) {
+  const clean = new FormData();
+  for (const name of names) {
+    const value = formData.get(name);
+    if (typeof value === "string") clean.set(name, value);
+  }
+  return clean;
+}
+
+async function uploadDirectFile(file: File, path: string) {
+  const supabase = createSupabaseBrowserClient();
+  const bucket = process.env.NEXT_PUBLIC_SUPABASE_STORAGE_BUCKET || "pdfs";
+  const { error } = await supabase.storage.from(bucket).upload(path, file, {
+    cacheControl: "3600",
+    upsert: false,
+    contentType: file.type || "application/octet-stream"
+  });
+  if (error) throw new Error(error.message);
+  const { data } = supabase.storage.from(bucket).getPublicUrl(path);
+  return data.publicUrl;
+}
+
 export default function AdminPage() {
   const [password, setPassword] = useState("");
   const [unlocked, setUnlocked] = useState(false);
@@ -70,6 +117,7 @@ export default function AdminPage() {
   const [selected, setSelected] = useState<PdfItem | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
   const [activeTab, setActiveTab] = useState<"overview" | "homepage" | "pages" | "upload" | "categories" | "users">("overview");
+  const [uploadProgress, setUploadProgress] = useState<{ label: string; items: UploadProgressItem[] } | null>(null);
 
   async function loadDashboard(pass = password) {
     setLoading(true);
@@ -158,55 +206,196 @@ export default function AdminPage() {
     setMessage("Category removed from dropdown.");
   }
 
+  function setProgressStart(label: string, files: File[]) {
+    setUploadProgress({
+      label,
+      items: files.map((file) => ({ name: file.name, progress: 0, status: "waiting" }))
+    });
+  }
+
+  function setProgressItem(index: number, progress: number, status: UploadProgressItem["status"] = "uploading") {
+    setUploadProgress((current) => current ? {
+      ...current,
+      items: current.items.map((item, itemIndex) => itemIndex === index ? { ...item, progress, status } : item)
+    } : current);
+  }
+
+  async function uploadFilesWithProgress(files: File[], basePath: string, label: string) {
+    setProgressStart(label, files);
+    const urls: string[] = [];
+    for (let index = 0; index < files.length; index++) {
+      const file = files[index];
+      setMessage(`${label}: uploading ${index + 1} of ${files.length}...`);
+      setProgressItem(index, 15, "uploading");
+      const url = await uploadDirectFile(file, `${basePath}/${String(index + 1).padStart(2, "0")}-${Date.now()}-${safeFileName(file.name)}`);
+      urls.push(url);
+      setProgressItem(index, 100, "done");
+    }
+    return urls;
+  }
+
+  async function uploadOptionalFileWithProgress(file: File | null, path: string, label: string) {
+    if (!file) return null;
+    setProgressStart(label, [file]);
+    setProgressItem(0, 25, "uploading");
+    setMessage(`${label}: uploading...`);
+    const url = await uploadDirectFile(file, `${path}/${Date.now()}-${safeFileName(file.name)}`);
+    setProgressItem(0, 100, "done");
+    return url;
+  }
+
   async function saveHomepage(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    setMessage("Saving homepage...");
+    setMessage("Preparing homepage save...");
     const formData = new FormData(e.currentTarget);
-    formData.set("password", password);
-    const response = await fetch("/api/admin/site-settings", { method: "POST", body: formData });
-    const data = await response.json();
-    if (!response.ok) {
-      setMessage(data.error ?? "Could not save homepage.");
-      return;
+    const cleanData = copyTextFields(formData, ["heroTitle", "heroSubtitle"]);
+    cleanData.set("password", password);
+
+    try {
+      const recipeHeroImage = optionalFileFromForm(formData, "recipeHeroImage");
+      const animalHeroImage = optionalFileFromForm(formData, "animalHeroImage");
+      const defaultWatermarkImage = optionalFileFromForm(formData, "defaultWatermarkImage");
+      const allFiles = [recipeHeroImage, animalHeroImage, defaultWatermarkImage].filter((file): file is File => Boolean(file));
+
+      if (allFiles.length > 0) setProgressStart("Uploading homepage images", allFiles);
+      let progressIndex = 0;
+      if (recipeHeroImage) {
+        setProgressItem(progressIndex, 20, "uploading");
+        cleanData.set("recipeHeroImageUrl", await uploadDirectFile(recipeHeroImage, `site/recipe-${Date.now()}-${safeFileName(recipeHeroImage.name)}`));
+        setProgressItem(progressIndex, 100, "done");
+        progressIndex++;
+      }
+      if (animalHeroImage) {
+        setProgressItem(progressIndex, 20, "uploading");
+        cleanData.set("animalHeroImageUrl", await uploadDirectFile(animalHeroImage, `site/animal-${Date.now()}-${safeFileName(animalHeroImage.name)}`));
+        setProgressItem(progressIndex, 100, "done");
+        progressIndex++;
+      }
+      if (defaultWatermarkImage) {
+        setProgressItem(progressIndex, 20, "uploading");
+        cleanData.set("defaultWatermarkImageUrl", await uploadDirectFile(defaultWatermarkImage, `site/default-watermark-${Date.now()}-${safeFileName(defaultWatermarkImage.name)}`));
+        setProgressItem(progressIndex, 100, "done");
+      }
+
+      setMessage("Saving homepage settings...");
+      const response = await fetch("/api/admin/site-settings", { method: "POST", body: cleanData });
+      const data = await response.json();
+      if (!response.ok) {
+        setMessage(data.error ?? "Could not save homepage.");
+        return;
+      }
+      setSettings(data.settings ?? {});
+      setMessage("Homepage saved. Refresh home page to see the new images.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not upload homepage images.");
+    } finally {
+      setTimeout(() => setUploadProgress(null), 1200);
     }
-    setSettings(data.settings ?? {});
-    setMessage("Homepage saved. Refresh home page to see the new images.");
   }
 
   async function uploadNew(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    setMessage("Uploading new visual page...");
+    setMessage("Preparing direct upload...");
     const form = e.currentTarget;
     const formData = new FormData(form);
-    formData.set("password", password);
-    formData.set("requiredPlan", String(formData.get("requiredPlan") ?? "free"));
-    const response = await fetch("/api/admin/create-pdf", { method: "POST", body: formData });
-    const data = await response.json();
-    if (!response.ok) {
-      setMessage(data.error ?? "Upload failed.");
+    const youtubeUrl = String(formData.get("youtubeUrl") ?? "").trim();
+    const videoId = extractYouTubeVideoId(youtubeUrl);
+    const pageImages = filesFromForm(formData, "pageImages");
+    const coverImage = optionalFileFromForm(formData, "coverImage");
+    const pdfFile = optionalFileFromForm(formData, "pdfFile");
+    const copyrightImage = optionalFileFromForm(formData, "copyrightImage");
+
+    if (!videoId) {
+      setMessage("Invalid original YouTube URL.");
       return;
     }
-    setMessage(`Uploaded: ${data.pdf.title}`);
-    form.reset();
-    await loadDashboard();
+    if (pageImages.length === 0) {
+      setMessage("Upload at least one page image.");
+      return;
+    }
+
+    const cleanData = copyTextFields(formData, ["youtubeUrl", "clipYoutubeUrl", "title", "category", "creatorName", "coverPosition", "requiredPlan", "watermarkPolicy", "description"]);
+    cleanData.set("password", password);
+    cleanData.set("requiredPlan", String(formData.get("requiredPlan") ?? "free"));
+
+    try {
+      const basePath = `admin-uploads/${videoId}/${Date.now()}`;
+      const pageImageUrls = await uploadFilesWithProgress(pageImages, `${basePath}/pages`, "Uploading page images");
+      cleanData.set("pageImageUrls", JSON.stringify(pageImageUrls));
+
+      const coverImageUrl = await uploadOptionalFileWithProgress(coverImage, `${basePath}/cover`, "Uploading card cover");
+      if (coverImageUrl) cleanData.set("coverImageUrl", coverImageUrl);
+
+      const copyrightImageUrl = await uploadOptionalFileWithProgress(copyrightImage, `${basePath}/copyright`, "Uploading watermark");
+      if (copyrightImageUrl) cleanData.set("copyrightImageUrl", copyrightImageUrl);
+
+      const pdfUrl = await uploadOptionalFileWithProgress(pdfFile, `${basePath}/pdf`, "Uploading optional PDF");
+      if (pdfUrl) cleanData.set("pdfUrl", pdfUrl);
+
+      setMessage("Saving post details...");
+      const response = await fetch("/api/admin/create-pdf", { method: "POST", body: cleanData });
+      const data = await response.json();
+      if (!response.ok) {
+        setMessage(data.error ?? "Upload failed.");
+        return;
+      }
+      setMessage(`Uploaded: ${data.pdf.title}`);
+      form.reset();
+      setPdfs((items) => [data.pdf, ...items.filter((item) => item.id !== data.pdf.id)]);
+      setStats((current) => current ? { ...current, pdfCount: current.pdfCount + 1 } : current);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Upload failed.");
+    } finally {
+      setTimeout(() => setUploadProgress(null), 1200);
+    }
   }
 
   async function updateSelected(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (!selected) return;
-    setMessage("Updating page...");
+    setMessage("Preparing page update...");
     const formData = new FormData(e.currentTarget);
-    formData.set("password", password);
-    formData.set("id", selected.id);
-    const response = await fetch("/api/admin/update-pdf", { method: "POST", body: formData });
-    const data = await response.json();
-    if (!response.ok) {
-      setMessage(data.error ?? "Update failed.");
-      return;
+    const cleanData = copyTextFields(formData, ["title", "category", "creatorName", "youtubeUrl", "clipYoutubeUrl", "coverPosition", "requiredPlan", "watermarkPolicy", "description"]);
+    cleanData.set("password", password);
+    cleanData.set("id", selected.id);
+
+    try {
+      const baseId = extractYouTubeVideoId(String(formData.get("youtubeUrl") ?? selected.youtube_url ?? "")) || selected.video_id || selected.id;
+      const basePath = `admin-updates/${baseId}/${Date.now()}`;
+      const pageImages = filesFromForm(formData, "pageImages");
+      const coverImage = optionalFileFromForm(formData, "coverImage");
+      const pdfFile = optionalFileFromForm(formData, "pdfFile");
+      const copyrightImage = optionalFileFromForm(formData, "copyrightImage");
+
+      if (pageImages.length > 0) {
+        const pageImageUrls = await uploadFilesWithProgress(pageImages, `${basePath}/pages`, "Replacing page images");
+        cleanData.set("pageImageUrls", JSON.stringify(pageImageUrls));
+      }
+
+      const coverImageUrl = await uploadOptionalFileWithProgress(coverImage, `${basePath}/cover`, "Replacing card cover");
+      if (coverImageUrl) cleanData.set("coverImageUrl", coverImageUrl);
+
+      const copyrightImageUrl = await uploadOptionalFileWithProgress(copyrightImage, `${basePath}/copyright`, "Replacing watermark");
+      if (copyrightImageUrl) cleanData.set("copyrightImageUrl", copyrightImageUrl);
+
+      const pdfUrl = await uploadOptionalFileWithProgress(pdfFile, `${basePath}/pdf`, "Replacing optional PDF");
+      if (pdfUrl) cleanData.set("pdfUrl", pdfUrl);
+
+      setMessage("Saving page details...");
+      const response = await fetch("/api/admin/update-pdf", { method: "POST", body: cleanData });
+      const data = await response.json();
+      if (!response.ok) {
+        setMessage(data.error ?? "Update failed.");
+        return;
+      }
+      setMessage(`Updated: ${data.pdf.title}`);
+      setSelected(data.pdf);
+      setPdfs((items) => items.map((item) => item.id === data.pdf.id ? data.pdf : item));
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Update failed.");
+    } finally {
+      setTimeout(() => setUploadProgress(null), 1200);
     }
-    setMessage(`Updated: ${data.pdf.title}`);
-    setSelected(data.pdf);
-    setPdfs((items) => items.map((item) => item.id === data.pdf.id ? data.pdf : item));
   }
 
   async function deleteSelected() {
@@ -258,6 +447,20 @@ export default function AdminPage() {
       </section>
 
       {message && <p className={message.includes("failed") || message.includes("Wrong") || message.includes("Could") ? "message error" : "message success"}>{message}</p>}
+
+      {uploadProgress && (
+        <div className="upload-progress-card pop-in">
+          <strong>{uploadProgress.label}</strong>
+          <div className="upload-progress-list">
+            {uploadProgress.items.map((item, index) => (
+              <div className="upload-progress-item" key={`${item.name}-${index}`}>
+                <div className="upload-progress-head"><span>{item.name}</span><small>{item.status === "done" ? "Done" : `${item.progress}%`}</small></div>
+                <div className="progress-track"><span style={{ width: `${item.progress}%` }} /></div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="admin-tabs">
         {(["overview", "homepage", "pages", "upload", "categories", "users"] as const).map((tab) => (

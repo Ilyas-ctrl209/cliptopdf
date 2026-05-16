@@ -28,6 +28,18 @@ function normalizeCoverPosition(value: string) {
   return allowed.has(value) ? value : "center center";
 }
 
+
+function parseUrlList(value: FormDataEntryValue | null) {
+  if (typeof value !== "string" || !value.trim()) return null;
+  try {
+    const parsed = JSON.parse(value);
+    if (!Array.isArray(parsed)) return null;
+    return parsed.filter((item): item is string => typeof item === "string" && item.trim().length > 0);
+  } catch {
+    return null;
+  }
+}
+
 export async function POST(request: Request) {
   const formData = await request.formData();
   const password = String(formData.get("password") ?? "");
@@ -59,6 +71,10 @@ export async function POST(request: Request) {
   const pdfFile = formData.get("pdfFile");
   const copyrightImage = formData.get("copyrightImage");
   const coverImage = formData.get("coverImage");
+  const directPageImageUrls = parseUrlList(formData.get("pageImageUrls"));
+  const directPdfUrl = String(formData.get("pdfUrl") ?? "").trim();
+  const directCopyrightImageUrl = String(formData.get("copyrightImageUrl") ?? "").trim();
+  const directCoverImageUrl = String(formData.get("coverImageUrl") ?? "").trim();
 
   const updateData: Record<string, unknown> = {
     title: String(formData.get("title") ?? existing.title).trim() || existing.title,
@@ -76,7 +92,10 @@ export async function POST(request: Request) {
   };
 
   try {
-    if (pageImages.length > 0) {
+    if (directPageImageUrls && directPageImageUrls.length > 0) {
+      updateData.page_image_urls = directPageImageUrls;
+      updateData.thumbnail_url = directPageImageUrls[0] ?? youtubeThumbnail(existing.video_id);
+    } else if (pageImages.length > 0) {
       const pageImageUrls: string[] = [];
       for (let index = 0; index < pageImages.length; index++) {
         const image = pageImages[index];
@@ -88,17 +107,23 @@ export async function POST(request: Request) {
       updateData.thumbnail_url = pageImageUrls[0] ?? youtubeThumbnail(existing.video_id);
     }
 
-    if (coverImage instanceof File && coverImage.size > 0) {
+    if (directCoverImageUrl) {
+      updateData.cover_image_url = directCoverImageUrl;
+    } else if (coverImage instanceof File && coverImage.size > 0) {
       if (coverImage.type && !coverImage.type.startsWith("image/")) return NextResponse.json({ error: "Card cover image must be an image." }, { status: 400 });
       updateData.cover_image_url = await uploadPublicFile(bucket, `${existing.video_id}/admin-cover/${stamp}-${safeFileName(coverImage.name)}`, coverImage);
     }
 
-    if (pdfFile instanceof File && pdfFile.size > 0) {
+    if (directPdfUrl) {
+      updateData.pdf_url = directPdfUrl;
+    } else if (pdfFile instanceof File && pdfFile.size > 0) {
       if (pdfFile.type && pdfFile.type !== "application/pdf") return NextResponse.json({ error: "PDF file must be a PDF." }, { status: 400 });
       updateData.pdf_url = await uploadPublicFile(bucket, `${existing.video_id}/admin-pdf/${stamp}-${safeFileName(pdfFile.name)}`, pdfFile);
     }
 
-    if (copyrightImage instanceof File && copyrightImage.size > 0) {
+    if (directCopyrightImageUrl) {
+      updateData.copyright_image_url = directCopyrightImageUrl;
+    } else if (copyrightImage instanceof File && copyrightImage.size > 0) {
       if (copyrightImage.type && !copyrightImage.type.startsWith("image/")) return NextResponse.json({ error: "Copyright file must be an image." }, { status: 400 });
       updateData.copyright_image_url = await uploadPublicFile(bucket, `${existing.video_id}/admin-copyright/${stamp}-${safeFileName(copyrightImage.name)}`, copyrightImage);
     }

@@ -179,6 +179,15 @@ export default function HomePage() {
         </div>
       </section>
 
+      <section className="container creator-monetization-banner float-in">
+        <div>
+          <span className="badge">Creator monetization</span>
+          <h2>Creator monetization will begin soon.</h2>
+          <p>Creators will soon be able to earn from high-quality visual PDF pages after approval. For now, keep uploading great pages and building your library.</p>
+        </div>
+        <a className="btn ghost" href="/creator">Creator studio</a>
+      </section>
+
       <section id="library" className="container section">
         <div className="section-title">
           <div>

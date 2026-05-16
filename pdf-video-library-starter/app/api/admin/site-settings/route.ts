@@ -40,17 +40,23 @@ export async function POST(request: Request) {
   const recipeHeroImage = formData.get("recipeHeroImage");
   const animalHeroImage = formData.get("animalHeroImage");
   const defaultWatermarkImage = formData.get("defaultWatermarkImage");
+  const directRecipeHeroImageUrl = String(formData.get("recipeHeroImageUrl") ?? "").trim();
+  const directAnimalHeroImageUrl = String(formData.get("animalHeroImageUrl") ?? "").trim();
+  const directDefaultWatermarkImageUrl = String(formData.get("defaultWatermarkImageUrl") ?? "").trim();
 
   try {
-    if (recipeHeroImage instanceof File && recipeHeroImage.size > 0) {
+    if (directRecipeHeroImageUrl) settings.recipe_hero_image_url = directRecipeHeroImageUrl;
+    if (directAnimalHeroImageUrl) settings.animal_hero_image_url = directAnimalHeroImageUrl;
+    if (directDefaultWatermarkImageUrl) settings.default_watermark_image_url = directDefaultWatermarkImageUrl;
+    if (!directRecipeHeroImageUrl && recipeHeroImage instanceof File && recipeHeroImage.size > 0) {
       if (recipeHeroImage.type && !recipeHeroImage.type.startsWith("image/")) return NextResponse.json({ error: "Recipe hero must be an image." }, { status: 400 });
       settings.recipe_hero_image_url = await uploadPublicFile(bucket, `site/recipe-${stamp}-${safeFileName(recipeHeroImage.name)}`, recipeHeroImage);
     }
-    if (animalHeroImage instanceof File && animalHeroImage.size > 0) {
+    if (!directAnimalHeroImageUrl && animalHeroImage instanceof File && animalHeroImage.size > 0) {
       if (animalHeroImage.type && !animalHeroImage.type.startsWith("image/")) return NextResponse.json({ error: "Animal hero must be an image." }, { status: 400 });
       settings.animal_hero_image_url = await uploadPublicFile(bucket, `site/animal-${stamp}-${safeFileName(animalHeroImage.name)}`, animalHeroImage);
     }
-    if (defaultWatermarkImage instanceof File && defaultWatermarkImage.size > 0) {
+    if (!directDefaultWatermarkImageUrl && defaultWatermarkImage instanceof File && defaultWatermarkImage.size > 0) {
       if (defaultWatermarkImage.type && !defaultWatermarkImage.type.startsWith("image/")) return NextResponse.json({ error: "Default watermark must be an image." }, { status: 400 });
       settings.default_watermark_image_url = await uploadPublicFile(bucket, `site/default-watermark-${stamp}-${safeFileName(defaultWatermarkImage.name)}`, defaultWatermarkImage);
     }
